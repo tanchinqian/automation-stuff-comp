@@ -18,7 +18,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
   const body = p.querySelector('.panel-body')! as HTMLElement;
 
   const notes = el('textarea', 'notes-area') as HTMLTextAreaElement;
-  notes.placeholder = 'Engineer notes (optional) — recorded into the report…';
+  notes.placeholder = 'Engineer notes (optional) - recorded into the report…';
 
   const fmt = (label: string, value: string) => {
     const row = el('div', 'bar-row');
@@ -31,7 +31,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
   body.appendChild(el('div', 'question-label', 'Report contents'));
   fmt('Problem', d.material ? `Dispensing defect reported with ${d.material}` : 'Dispensing defect reported');
   fmt('Identified defect', `${d.defect.defectName} (${(d.defect.defectConfidence * 100).toFixed(0)}%)`);
-  fmt('Top possible cause', d.defect.causes[0]?.name ?? '—');
+  fmt('Top possible cause', d.defect.causes[0]?.name ?? '-');
   fmt('Confidence', `${(d.defect.causes[0]?.score ?? 0) * 100}%`);
   if (d.qualityScore !== undefined) fmt('Quality score', `${d.qualityScore}/100`);
   fmt('Recommended checks', `${appState.lastActions?.length ?? 0} sequential steps`);
@@ -86,8 +86,8 @@ export async function renderLearningStats(body: HTMLElement): Promise<void> {
   stat('Cases', `${cases.length}`);
   stat('Resolved', `${stats.reduce((a, b) => a + b.resolved, 0)}`, 'good');
   const top = stats[0];
-  stat('Top cause', top ? top.causeId.replace(/-/g, ' ') : '—', 'warn');
-  stat('Top success', top ? `${(top.successRate * 100).toFixed(0)}%` : '—', 'good');
+  stat('Top cause', top ? top.causeId.replace(/-/g, ' ') : '-', 'warn');
+  stat('Top success', top ? `${(top.successRate * 100).toFixed(0)}%` : '-', 'good');
   body.appendChild(strip);
 
   const label = el('div', 'question-label');

@@ -45,7 +45,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     doc.setFontSize(10);
     doc.setTextColor(...COL.grey);
     doc.text(
-      `Generated ${new Date(data.diagnosis.timestamp).toLocaleString()}  |  NLU engine: ${data.engineLabel}  |  Material: ${data.diagnosis.material || '—'}`,
+      `Generated ${new Date(data.diagnosis.timestamp).toLocaleString()}  |  NLU engine: ${data.engineLabel}  |  Material: ${data.diagnosis.material || '-'}`,
       M,
       y,
     );

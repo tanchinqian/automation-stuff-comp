@@ -120,7 +120,7 @@ export function createInspectionPanel(opts: {
         lastCanvas = canvas;
         lastImageData = imageDataFromCanvas(canvas);
         lastLabel = `Uploaded: ${file.name}`;
-        legend.textContent = `Uploaded ${file.name} (${canvas.width}×${canvas.height}) · run ANALYZE FRAME`;
+        legend.textContent = `Uploaded ${file.name} (${canvas.width}x${canvas.height}) · run ANALYZE FRAME`;
         clear(qualityBox);
         feedBtn.disabled = true;
       };
@@ -135,7 +135,7 @@ export function createInspectionPanel(opts: {
 
   const run = () => {
     if (!lastImageData) {
-      legend.textContent = '⚠ No frame to analyze — generate or upload one first.';
+      legend.textContent = '⚠ No frame to analyze - generate or upload one first.';
       return;
     }
     const analysis = analyzeImage(lastImageData);

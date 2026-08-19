@@ -1,5 +1,5 @@
 /**
- * ESP32-CAM LIVE STREAM — PLACEHOLDER
+ * ESP32-CAM LIVE STREAM - PLACEHOLDER
  * ===================================
  * This is the stubbed wiring point for the Bonus "Live Inspection" mode.
  *
@@ -47,5 +47,5 @@ export function captureFrameFromImg(img: HTMLImageElement, canvas: HTMLCanvasEle
 
 /** TODO(hardware): implement MJPEG frame parsing + YOLO detector here. */
 export function connectEsp32Stream(_config: Esp32StreamConfig): Promise<{ close: () => void }> {
-  return Promise.reject(new Error('ESP32 stream not implemented yet — hardware pending.'));
+  return Promise.reject(new Error('ESP32 stream not implemented yet - hardware pending.'));
 }

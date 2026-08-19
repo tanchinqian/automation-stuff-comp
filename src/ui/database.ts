@@ -32,7 +32,7 @@ export function renderDatabase(host: HTMLElement): void {
   const explain = el('div', 'reasoning');
   explain.appendChild(el('div', 'rlabel', 'How the learning works'));
   explain.appendChild(
-    el('p', '', 'Every troubleshooting session is stored locally. When an engineer marks which cause actually fixed the problem, that resolved outcome becomes evidence. The diagnosis engine blends these empirical priors with the built-in knowledge base — so the system genuinely gets smarter with each resolved case, entirely on-device.'),
+    el('p', '', 'Every troubleshooting session is stored locally. When an engineer marks which cause actually fixed the problem, that resolved outcome becomes evidence. The diagnosis engine blends these empirical priors with the built-in knowledge base - so the system genuinely gets smarter with each resolved case, entirely on-device.'),
   );
   tBody.appendChild(explain);
 
@@ -64,7 +64,7 @@ function renderHistory(body: HTMLElement, cases: CaseRecord[]): void {
   const sorted = [...cases].sort((a, b) => b.timestamp - a.timestamp);
   for (const c of sorted.slice(0, 12)) {
     const row = el('div', 'hist-row');
-    row.appendChild(el('span', 'mat', c.material || '—'));
+    row.appendChild(el('span', 'mat', c.material || '-'));
     row.appendChild(el('span', '', c.defectId.replace(/-/g, ' ')));
     row.appendChild(el('span', 'cause', c.resolvedCause ? `✓ ${c.resolvedCause.replace(/-/g, ' ')}` : `pred. ${c.topCause.replace(/-/g, ' ')}`));
     row.appendChild(el('span', 'res', c.resolvedCause ? 'resolved' : 'open'));

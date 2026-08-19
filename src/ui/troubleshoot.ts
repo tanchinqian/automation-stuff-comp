@@ -33,7 +33,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const vision = createInspectionPanel({
     onAnalyze: () => {
-      aiSay('Frame analyzed — quality score and defect flags updated on the left.');
+      aiSay('Frame analyzed - quality score and defect flags updated on the left.');
     },
     onFeed: (r: VisionResult) => {
       feedVision(r);
@@ -145,7 +145,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
       addSymptoms(fallback.symptoms as SymptomId[]);
       nluNote.innerHTML += ' · fallback rules applied';
     }
-    aiSay(`Understood — updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
+    aiSay(`Understood - updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
     finishIntake(true);
   };
 
@@ -195,7 +195,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     const names = syms.map((s) => s.replace(/-/g, ' '));
     userSay(`[Image] analyzed: ${r.analysis.dominantClass.toUpperCase()}`);
     aiSay(
-      `Image findings accepted — flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality.overall}/100</b>. Running diagnosis with the combined evidence.`,
+      `Image findings accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality.overall}/100</b>. Running diagnosis with the combined evidence.`,
       true,
     );
     diagnose();
@@ -203,7 +203,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
-    aiSay('Welcome to <b>DISPENSE.AI</b> — the AI Dispensing Defect Detective.');
+    aiSay('Welcome to <b>DISPENSE.AI</b> - the AI Dispensing Defect Detective.');
     aiSay('I will ask up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words, or run an image inspection on the left and feed it into the diagnosis.');
     nextQuestion();
   }, 150);
@@ -225,7 +225,7 @@ export function renderDiagnosis(
   if (!report || !actions) {
     body.appendChild(el('div', 'empty-state', ''));
     const e = body.lastChild as HTMLElement;
-    e.innerHTML = '<div class="big">◈</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
+    e.innerHTML = '<div class="big">◆-◆</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
     return;
   }
 
@@ -321,7 +321,7 @@ export function renderDiagnosis(
   }
 
   const fb = el('div', 'feedback');
-  fb.appendChild(el('div', 'flabel', 'Engineer feedback — what actually fixed it? (feeds the learning database)'));
+  fb.appendChild(el('div', 'flabel', 'Engineer feedback - what actually fixed it? (feeds the learning database)'));
   const chips = el('div', 'chips');
   const causeOptions = d.causes.slice(0, 5);
   const chooseCause = async (causeId: string) => {

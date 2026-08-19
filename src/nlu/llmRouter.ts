@@ -92,7 +92,7 @@ export class HeuristicNlu implements NluProvider {
       summary:
         symptoms.size > 0
           ? `Detected: ${[...symptoms].join(', ')}${material ? ` | material: ${material}` : ''}`
-          : 'I could not confidently parse that answer — please use the quick-answer buttons, or rephrase.',
+          : 'I could not confidently parse that answer - please use the quick-answer buttons, or rephrase.',
     };
   }
 }

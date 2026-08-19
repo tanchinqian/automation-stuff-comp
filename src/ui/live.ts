@@ -28,7 +28,7 @@ export function renderLive(host: HTMLElement): void {
   lBody.appendChild(srcLabel);
   lBody.appendChild(toolbar);
 
-  const badge = el('span', 'live-badge stub', 'ESP32: PLACEHOLDER — WIRING PENDING');
+  const badge = el('span', 'live-badge stub', 'ESP32: PLACEHOLDER - WIRING PENDING');
   toolbar.appendChild(badge);
 
   const btnSim = button('SIMULATOR', 'btn primary sm');
@@ -42,7 +42,7 @@ export function renderLive(host: HTMLElement): void {
   const urlInput = el('input', 'live-url') as HTMLInputElement;
   urlInput.value = ESP32_PLACEHOLDER;
   const btnEsp = button('CONNECT ESP32', 'btn sm');
-  btnEsp.title = 'Placeholder — ESP32-CAM wiring is stubbed. See src/live/README.md';
+  btnEsp.title = 'Placeholder - ESP32-CAM wiring is stubbed. See src/live/README.md';
   urlRow.appendChild(urlInput);
   urlRow.appendChild(btnEsp);
   lBody.appendChild(urlRow);
@@ -70,11 +70,11 @@ export function renderLive(host: HTMLElement): void {
     rBodyStatic.appendChild(x);
   };
   metric('Frames analyzed', '0');
-  metric('Current defect', '—');
+  metric('Current defect', '-');
   metric('Dots / frame', '0');
   metric('Missing', '0');
-  metric('Quality', '—');
-  metric('Size CV', '—');
+  metric('Quality', '-');
+  metric('Size CV', '-');
   const liveStatus = el('div', 'nlu-note', '');
   rBody.appendChild(rBodyStatic);
   rBody.appendChild(liveStatus);
@@ -137,7 +137,7 @@ export function renderLive(host: HTMLElement): void {
     stopAll();
     running = true;
     simTick = makeLiveSimulator('mixed');
-    statusLine.textContent = 'Status: synthetic simulator stream — every 8th frame introduces a defect mix';
+    statusLine.textContent = 'Status: synthetic simulator stream - every 8th frame introduces a defect mix';
     frames = 0;
     loop();
   };
@@ -153,7 +153,7 @@ export function renderLive(host: HTMLElement): void {
       v.style.display = 'none';
       document.body.appendChild(v);
       running = true;
-      statusLine.textContent = 'Status: webcam live — analysis running on every frame';
+      statusLine.textContent = 'Status: webcam live - analysis running on every frame';
       frames = 0;
       loop();
     } catch (e) {
@@ -163,7 +163,7 @@ export function renderLive(host: HTMLElement): void {
 
   const startEsp32 = () => {
     stopAll();
-    statusLine.innerHTML = 'Status: <b style="color:var(--amber)">ESP32-CAM stream — PLACEHOLDER.</b> Wiring pending. The UI is ready: point it at the ESP32 MJPEG URL (default 192.168.4.1/stream) once the camera firmware is flashed. See the stub in <span class="mono">src/live/esp32.ts</span>.';
+    statusLine.innerHTML = 'Status: <b style="color:var(--warn)">ESP32-CAM stream - PLACEHOLDER.</b> Wiring pending. The UI is ready: point it at the ESP32 MJPEG URL (default 192.168.4.1/stream) once the camera firmware is flashed. See the stub in <span class="mono">src/live/esp32.ts</span>.';
   };
 
   btnSim.onclick = startSim;

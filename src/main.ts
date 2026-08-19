@@ -19,7 +19,7 @@ const topbar = el('div', 'topbar');
 const brand = el('div', 'brand');
 brand.appendChild(el('span', 'mark'));
 brand.appendChild(el('span', '', 'DISPENSE.AI'));
-brand.appendChild(el('span', '', '— AI Dispensing Defect Detective'));
+brand.appendChild(el('span', '', '- AI Dispensing Defect Detective'));
 topbar.appendChild(brand);
 
 const nav = el('div', 'nav-tabs');
@@ -68,7 +68,7 @@ renderReportTab(document.getElementById('tab-report')!);
 const footer = el('div', 'footer');
 footer.appendChild(el('span', '', 'NSW AUTOMATION · AI Horizon Solution Challenge 2026'));
 footer.appendChild(el('span', '', 'Self-contained diagnostic engine + classical CV + on-device NLU (Gemini Nano → on-device model → embedded rules)'));
-footer.appendChild(el('span', '', 'ESP32-CAM live-stream wiring: placeholder — see src/live/esp32.ts'));
+footer.appendChild(el('span', '', 'ESP32-CAM live-stream wiring: placeholder - see src/live/esp32.ts'));
 app.appendChild(footer);
 
 // Boot NLU detection for the status chip
