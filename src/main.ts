@@ -61,7 +61,7 @@ topbar.appendChild(engineChip);
 app.appendChild(topbar);
 
 // Tab panes
-const panes = el('div', '');
+const panes = el('div', 'panes');
 for (const t of TABS) {
   const pane = el('div', 'tab-pane');
   pane.id = `tab-${t.id}`;

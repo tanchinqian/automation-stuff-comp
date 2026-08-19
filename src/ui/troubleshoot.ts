@@ -24,7 +24,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
   host.appendChild(layout);
 
   // ---- Main column: inspection + diagnosis ----
-  const mainCol = el('div', '');
+  const mainCol = el('div', 'main-col');
   layout.appendChild(mainCol);
 
   const diagPanel = panel('Diagnosis', 'live analysis');
