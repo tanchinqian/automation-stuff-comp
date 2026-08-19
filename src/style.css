@@ -525,10 +525,9 @@ label,
   max-width: 640px;
 }
 .msg.ai .bubble {
-  border-left: 3px solid var(--accent);
+  background: rgba(46, 230, 168, 0.05);
 }
 .msg.user .bubble {
-  border-left: 3px solid var(--chat-user);
   margin-left: auto;
   background: rgba(90, 169, 255, 0.06);
 }
@@ -604,7 +603,20 @@ label,
   height: 100%;
   border-radius: var(--r-2);
   background: linear-gradient(90deg, var(--accent-dim), var(--accent));
-  transition: width 0.6s ease;
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes bar-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill {
+    transform: scaleX(1);
+    animation: none;
+  }
 }
 .bar-fill.amber {
   background: linear-gradient(90deg, #b8862f, var(--warn));
@@ -622,9 +634,9 @@ label,
 .reasoning {
   margin-top: 14px;
   padding: 12px 14px;
-  border-left: 3px solid var(--warn);
+  border: 1px solid rgba(255, 182, 77, 0.22);
   background: rgba(255, 182, 77, 0.05);
-  border-radius: 0 8px 8px 0;
+  border-radius: var(--r-4);
   font-size: 13px;
   color: var(--ink-dim);
 }
