@@ -55,6 +55,7 @@ export function renderLive(host: HTMLElement): void {
   lBody.appendChild(frameWrap);
 
   const statusLine = el('div', 'nlu-note', 'Status: idle');
+  statusLine.setAttribute('aria-live', 'polite');
   lBody.appendChild(statusLine);
 
   layout.appendChild(left);
@@ -76,6 +77,7 @@ export function renderLive(host: HTMLElement): void {
   metric('Quality', '-');
   metric('Size CV', '-');
   const liveStatus = el('div', 'nlu-note', '');
+  liveStatus.setAttribute('aria-live', 'polite');
   rBody.appendChild(rBodyStatic);
   rBody.appendChild(liveStatus);
 

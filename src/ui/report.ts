@@ -19,6 +19,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
 
   const notes = el('textarea', 'notes-area') as HTMLTextAreaElement;
   notes.placeholder = 'Engineer notes (optional) - recorded into the report…';
+  notes.setAttribute('aria-label', 'Engineer notes');
 
   const fmt = (label: string, value: string) => {
     const row = el('div', 'bar-row');

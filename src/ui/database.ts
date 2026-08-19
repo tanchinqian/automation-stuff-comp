@@ -14,6 +14,8 @@ export function renderDatabase(host: HTMLElement): void {
   const seedBtn = button('SEED DEMO HISTORY', 'btn', async () => {
     const existing = await getAllCases();
     if (existing.length) {
+      const ok = confirm('This will replace the current case history with demo data. Continue?');
+      if (!ok) return;
       await clearCases();
     }
     for (const c of seedCases()) {
@@ -22,6 +24,8 @@ export function renderDatabase(host: HTMLElement): void {
     await renderAll();
   });
   const clearBtn = button('CLEAR ALL', 'btn ghost', async () => {
+    const ok = confirm('Delete all stored troubleshooting cases? This cannot be undone.');
+    if (!ok) return;
     await clearCases();
     await renderAll();
   });

@@ -68,9 +68,12 @@ export function createInspectionPanel(opts: {
   const canvas = document.createElement('canvas');
   canvas.width = 300;
   canvas.height = 240;
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Dispensing inspection image with computer-vision detection overlay');
   frame.appendChild(canvas);
   body.appendChild(frame);
   const legend = el('div', 'overlay-legend', '');
+  legend.setAttribute('aria-live', 'polite');
   body.appendChild(legend);
 
   // Buttons
@@ -142,7 +145,7 @@ export function createInspectionPanel(opts: {
     drawOverlay(canvas, analysis, lastImageData);
     const quality = qualityScore(analysis);
     const defect = analysis.defectDetected ? CLASS_LABELS[analysis.dominantClass] : 'no significant defect';
-    legend.innerHTML = `Detected <b>${analysis.metrics.count}</b> dot(s) · <b style="color:var(--${analysis.dominantClass === 'spread' || analysis.dominantClass === 'undersized' ? 'amber' : analysis.dominantClass === 'missing' ? 'red' : 'accent'})">${CLASS_LABELS[analysis.dominantClass].toUpperCase()}</b> · missing: ${analysis.metrics.missingCount}`;
+    legend.innerHTML = `Detected <b>${analysis.metrics.count}</b> dot(s) · <b style="color:var(--${analysis.dominantClass === 'spread' || analysis.dominantClass === 'undersized' ? 'warn' : analysis.dominantClass === 'missing' ? 'danger' : 'accent'})">${CLASS_LABELS[analysis.dominantClass].toUpperCase()}</b> · missing: ${analysis.metrics.missingCount}`;
 
     // Quality cards
     clear(qualityBox);

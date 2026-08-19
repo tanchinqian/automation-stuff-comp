@@ -24,7 +24,10 @@ export function panel(title: string, hint = '', ...body: HTMLElement[]): HTMLEle
   const p = el('section', 'panel');
   const head = el('div', 'panel-head');
   head.appendChild(el('span', 'tick'));
-  head.appendChild(el('span', 'title', title));
+  const titleEl = document.createElement('h2');
+  titleEl.className = 'title';
+  titleEl.textContent = title;
+  head.appendChild(titleEl);
   if (hint) head.appendChild(el('span', 'hint', hint));
   const b = el('div', 'panel-body');
   body.forEach((n) => b.appendChild(n));

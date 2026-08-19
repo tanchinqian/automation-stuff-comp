@@ -46,13 +46,17 @@ export function renderTroubleshoot(host: HTMLElement): void {
   chatPanel.classList.add('chat-sticky');
   const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
   const chatLog = el('div', 'chat-log');
+  chatLog.setAttribute('aria-live', 'polite');
   const inputRow = el('div', 'freetext-row');
   const input = el('input', 'freetext-input') as HTMLInputElement;
   input.placeholder = 'Or describe the problem in your own words… (offline AI parses it)';
+  input.setAttribute('aria-label', 'Describe the dispensing problem in your own words');
+  input.setAttribute('autocomplete', 'off');
   const sendBtn = button('ANALYZE', 'btn primary');
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
   const nluNote = el('div', 'nlu-note', 'NLU: detecting local AI engine…');
+  nluNote.setAttribute('aria-live', 'polite');
   chatBody.appendChild(chatLog);
   chatBody.appendChild(inputRow);
   chatBody.appendChild(nluNote);
@@ -233,7 +237,7 @@ export function renderDiagnosis(
 
   const hero = el('div', 'diag-hero');
   hero.appendChild(el('div', 'kicker', 'Identified dispensing defect'));
-  hero.appendChild(el('h2', '', d.defectName));
+  hero.appendChild(el('h3', '', d.defectName));
   hero.appendChild(el('p', '', d.defectDescription));
   const conf = el('div', 'confidence-row');
   conf.appendChild(el('span', 'confidence-label', 'DEFECT CONFIDENCE'));
@@ -370,9 +374,14 @@ export function renderDiagnosis(
 
 export function switchTab(name: string): void {
   document.querySelectorAll('.nav-tab').forEach((t) => {
-    t.classList.toggle('active', t.getAttribute('data-tab') === name);
+    const active = t.getAttribute('data-tab') === name;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
   });
   document.querySelectorAll('.tab-pane').forEach((p) => {
-    p.classList.toggle('hidden', p.id !== `tab-${name}`);
+    const active = p.id === `tab-${name}`;
+    p.classList.toggle('hidden', !active);
+    if (!active) p.setAttribute('aria-hidden', 'true');
+    else p.removeAttribute('aria-hidden');
   });
 }
