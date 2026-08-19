@@ -206,8 +206,11 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   doc.rect(ML, y, CW, 1, 'F');
   y += 14;
 
-  // ── 1. Problem Description ───────────────────────────────────────────────────
-  section('1. Problem Description', 0);
+  // Section counter — auto-increments so optional sections never break numbering
+  let sn = 1;
+
+  // ── 1. Problem Description ──────────────────────────────────────────────
+  section(`${sn++}. Problem Description`, 0);
   kv('Material', data.diagnosis.material || 'Not specified');
   para(
     data.diagnosis.material
@@ -215,15 +218,15 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
       : 'Operator reported a dispensing defect. No material type was specified.',
   );
 
-  // ── 2. Identified Defect ─────────────────────────────────────────────────────
-  section('2. Identified Dispensing Defect');
+  // ── 2. Identified Defect ──────────────────────────────────────────────
+  section(`${sn++}. Identified Dispensing Defect`);
   kv('Defect type',  data.diagnosis.defect.defectName);
   kv('Confidence',   `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
   para(data.diagnosis.defect.defectDescription);
 
   // ── 3. Image Inspection (optional) ─────────────────────────────────────────
   if (data.imageUrl) {
-    section('3. Image Inspection');
+    section(`${sn++}. Image Inspection`);
     try {
       // Max display width is content width; scale height proportionally
       const imgW = Math.min(CW, 320);
@@ -246,23 +249,23 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     }
   }
 
-  // ── 4 (was 3). AI Analysis ──────────────────────────────────────────────────
-  section(data.imageUrl ? '4. AI Analysis' : '3. AI Analysis');
+  // ── AI Analysis ────────────────────────────────────────────────────
+  section(`${sn++}. AI Analysis`);
   if (data.diagnosis.activeSymptoms.length) {
     para(`Symptom profile (${data.diagnosis.activeSymptoms.length} indicators):`, { color: C.grey, size: 8.5, gap: 2 });
     para(data.diagnosis.activeSymptoms.join('  ·  '), { size: 8.5, color: C.body });
   }
   para(data.diagnosis.defect.reasoning);
 
-  // ── 4. Possible Causes ───────────────────────────────────────────────────────
-  section('4. Possible Causes & Likelihood');
+  // ── Possible Causes ────────────────────────────────────────────────────────
+  section(`${sn++}. Possible Causes & Likelihood`);
   for (const c of data.diagnosis.defect.causes.slice(0, 5)) {
     causeCard(c.name, c.category, c.score, c.description);
   }
 
-  // ── 5. Quality / Confidence Score ────────────────────────────────────────────
+  // ── Quality / Confidence Score ────────────────────────────────────────────
   if (data.quality) {
-    section('5. Dispensing Quality Score');
+    section(`${sn++}. Dispensing Quality Score`);
     guard(70);
 
     // Big score
@@ -299,12 +302,12 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     });
     y += 48;
   } else {
-    section('5. Confidence Score');
+    section(`${sn++}. Confidence Score`);
     para(`Overall defect confidence: ${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}% — based on the identified symptom profile.`);
   }
 
-  // ── 6. Troubleshooting Sequence ──────────────────────────────────────────────
-  section('6. Recommended Troubleshooting Sequence');
+  // ── Troubleshooting Sequence ──────────────────────────────────────────────────
+  section(`${sn++}. Recommended Troubleshooting Sequence`);
 
   for (const a of data.actions) {
     const detailLines = doc.splitTextToSize(a.detail, CW - 70);
@@ -339,8 +342,8 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     y += 8;
   }
 
-  // ── 7. Engineer Notes ────────────────────────────────────────────────────────
-  section('7. Engineer Notes');
+  // ── Engineer Notes ─────────────────────────────────────────────────────────────
+  section(`${sn++}. Engineer Notes`);
   para(data.engineerNotes || 'No engineer notes recorded for this session.', { color: C.grey });
 
   // ── Final footer ─────────────────────────────────────────────────────────────

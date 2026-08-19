@@ -155,11 +155,15 @@ export function renderLive(host: HTMLElement): void {
       v.style.display = 'none';
       document.body.appendChild(v);
       running = true;
-      statusLine.textContent = 'Status: webcam live - analysis running on every frame';
+      statusLine.textContent = 'Status: webcam live — analysis running on every frame';
       frames = 0;
       loop();
     } catch (e) {
-      statusLine.textContent = `Status: webcam unavailable (${(e as Error).message})`;
+      const err = e as Error;
+      const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+      statusLine.innerHTML = isDenied
+        ? '<b style="color:var(--danger)">⚠ Camera access denied.</b> Please allow camera access in your browser settings and try again.'
+        : `<b style="color:var(--warn)">⚠ Webcam unavailable.</b> ${err.message}`;
     }
   };
 

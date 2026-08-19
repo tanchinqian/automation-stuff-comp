@@ -377,8 +377,13 @@ export function renderDiagnosis(
     renderReportTab(document.getElementById('tab-report') as HTMLElement);
     switchTab('report');
   });
+  const newSessionBtn = button('NEW SESSION', 'btn ghost', () => {
+    const host = document.getElementById('tab-troubleshoot');
+    if (host) renderTroubleshoot(host);
+  });
   row.appendChild(saveBtn);
   row.appendChild(reportBtn);
+  row.appendChild(newSessionBtn);
   body.appendChild(row);
 }
 
