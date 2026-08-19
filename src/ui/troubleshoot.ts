@@ -3,11 +3,12 @@ import { runDiagnosis } from '../engine/scorer';
 import { buildActionPlan } from '../engine/actions';
 import type { QuestionDef, SymptomId } from '../engine/types';
 import { appState, addSymptoms, resetState } from './state';
-import { el, elHTML, clear, button, panel, stars } from './dom';
-import { LlmRouter } from '../nlu/llmRouter';
-import { saveCase, resolveCase, seedCases, getAllCases, priorOverrides, type CaseRecord } from '../db/caseDB';
+import { el, clear, button, panel, stars } from './dom';
+import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
+import { saveCase, getAllCases, priorOverrides } from '../db/caseDB';
 import { renderReportTab } from './report';
-import { qualityScore } from '../vision/qualityScore';
+import { createInspectionPanel, type VisionResult } from './vision';
+import { classToSymptoms } from '../vision/qualityScore';
 
 interface PendingQuestion {
   def: QuestionDef;
@@ -19,12 +20,31 @@ const llm = new LlmRouter();
 export function renderTroubleshoot(host: HTMLElement): void {
   clear(host);
   resetState();
-  const layout = el('div', 'layout cols');
+  const layout = el('div', 'layout workspace');
   host.appendChild(layout);
 
-  const chatPanel = panel('Intake Console', '5 smart questions + dynamic follow-ups');
-  const diagPanel = panel('Diagnosis', 'live analysis');
+  // ---- Main column: inspection + diagnosis ----
+  const mainCol = el('div', '');
+  layout.appendChild(mainCol);
 
+  const diagPanel = panel('Diagnosis', 'live analysis');
+  const diagBody = diagPanel.querySelector('.panel-body')! as HTMLElement;
+  mainCol.appendChild(diagPanel);
+
+  const vision = createInspectionPanel({
+    onAnalyze: () => {
+      aiSay('Frame analyzed — quality score and defect flags updated on the left.');
+    },
+    onFeed: (r: VisionResult) => {
+      feedVision(r);
+    },
+  });
+  mainCol.insertBefore(vision.panel, diagPanel);
+
+  // ---- Sidebar: AI assistant chat ----
+  const chatPanel = panel('AI Assistant', 'intake + free-text NLU');
+  chatPanel.classList.add('chat-sticky');
+  const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
   const chatLog = el('div', 'chat-log');
   const inputRow = el('div', 'freetext-row');
   const input = el('input', 'freetext-input') as HTMLInputElement;
@@ -33,26 +53,16 @@ export function renderTroubleshoot(host: HTMLElement): void {
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
   const nluNote = el('div', 'nlu-note', 'NLU: detecting local AI engine…');
-
-  const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
   chatBody.appendChild(chatLog);
   chatBody.appendChild(inputRow);
   chatBody.appendChild(nluNote);
-
   layout.appendChild(chatPanel);
-  layout.appendChild(diagPanel);
 
-  const diagBody = diagPanel.querySelector('.panel-body')! as HTMLElement;
-
-  // Boot NLU detection
-  llm.detect().then((engine) => {
-    const label = engine === 'gemini-nano' ? 'Chrome built-in Gemini Nano' : engine === 'transformers' ? 'On-device model (transformers.js)' : 'Embedded rules engine';
-    appState.lastEngineLabel = label;
-    nluNote.innerHTML = `NLU engine: <b>${label}</b> · <span style="color:var(--ink-faint)">fully offline</span>`;
-  });
-
+  // ---- Chat wiring ----
   const queue: PendingQuestion[] = [];
   let followUpsAsked = 0;
+  let asked = 0;
+  let intakeDone = false;
 
   const aiSay = (text: string, html = false) => {
     const m = el('div', 'msg ai');
@@ -71,8 +81,6 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.appendChild(m);
     chatLog.scrollTop = chatLog.scrollHeight;
   };
-
-  const pendingFollowUps = () => queue.length;
 
   const askQuestion = (q: QuestionDef) => {
     const block = el('div', 'question-block');
@@ -109,7 +117,6 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.scrollTop = chatLog.scrollHeight;
   };
 
-  let asked = 0;
   const nextQuestion = () => {
     if (queue.length > 0) {
       const pq = queue.shift()!;
@@ -129,18 +136,16 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const runFromFreeText = async (text: string) => {
     userSay(text);
     nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
-    const parsed = await llm.parse(text);
+    let parsed = await llm.parse(text);
     if (parsed.material) appState.material = parsed.material;
     addSymptoms(parsed.symptoms as SymptomId[]);
     nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
-    if (parsed.engine !== 'heuristic' && parsed.symptoms.length === 0) {
-      // model failed to extract; re-run heuristics
-      const fallback = await new (await import('../nlu/llmRouter')).HeuristicNlu().parse(text);
+    if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
+      const fallback = await new HeuristicNlu().parse(text);
       addSymptoms(fallback.symptoms as SymptomId[]);
       nluNote.innerHTML += ' · fallback rules applied';
     }
     aiSay(`Understood — updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
-    // finish the intake and diagnose if we have at least something
     finishIntake(true);
   };
 
@@ -156,6 +161,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const finishIntake = (force = false) => {
     if (!force && asked < BASE_QUESTIONS.length) return;
+    if (intakeDone) return;
+    intakeDone = true;
     aiSay('Analyzing your answers against the dispensing knowledge base…');
     diagnose();
   };
@@ -166,12 +173,9 @@ export function renderTroubleshoot(host: HTMLElement): void {
     const report = runDiagnosis([...appState.symptoms], appState.material ? MATERIALS[appState.material] : '', priors);
     appState.lastDiagnosis = report;
     appState.lastActions = buildActionPlan(report.defect.causes.map((c) => c.causeId));
-
-    // Quality if we have image-derived metrics
-    if (appState.lastImage) {
-      appState.lastDiagnosis.qualityScore = appState.lastImage.quality?.overall;
+    if (appState.lastImage?.quality) {
+      report.qualityScore = appState.lastImage.quality.overall;
     }
-
     renderDiagnosis(diagBody, report, appState.lastActions);
     aiSay(
       `Diagnosis complete. Identified <b>${report.defect.defectName}</b> with ${(report.defect.defectConfidence * 100).toFixed(0)}% confidence. <br><span style="color:var(--ink-dim)">${report.defect.reasoning}</span>`,
@@ -179,12 +183,37 @@ export function renderTroubleshoot(host: HTMLElement): void {
     );
   };
 
+  const feedVision = (r: VisionResult) => {
+    const syms = classToSymptoms(r.analysis.dominantClass) as SymptomId[];
+    addSymptoms(syms);
+    appState.lastImage = {
+      label: r.label,
+      analysis: r.analysis,
+      quality: r.quality,
+      imageUrl: r.imageUrl,
+    };
+    const names = syms.map((s) => s.replace(/-/g, ' '));
+    userSay(`[Image] analyzed: ${r.analysis.dominantClass.toUpperCase()}`);
+    aiSay(
+      `Image findings accepted — flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality.overall}/100</b>. Running diagnosis with the combined evidence.`,
+      true,
+    );
+    diagnose();
+  };
+
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
     aiSay('Welcome to <b>DISPENSE.AI</b> — the AI Dispensing Defect Detective.');
-    aiSay('I will ask you up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words at any time.');
+    aiSay('I will ask up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words, or run an image inspection on the left and feed it into the diagnosis.');
     nextQuestion();
   }, 150);
+
+  // Boot NLU detection
+  llm.detect().then((engine) => {
+    const label = engine === 'gemini-nano' ? 'Chrome built-in Gemini Nano' : engine === 'transformers' ? 'On-device model (transformers.js)' : 'Embedded rules engine';
+    appState.lastEngineLabel = label;
+    nluNote.innerHTML = `NLU engine: <b>${label}</b> · <span style="color:var(--ink-faint)">fully offline</span>`;
+  });
 }
 
 export function renderDiagnosis(
@@ -194,11 +223,9 @@ export function renderDiagnosis(
 ): void {
   clear(body);
   if (!report || !actions) {
-    body.appendChild(
-      el('div', 'empty-state', '') // replaced below
-    );
+    body.appendChild(el('div', 'empty-state', ''));
     const e = body.lastChild as HTMLElement;
-    e.innerHTML = '<div class="big">◈</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the questions on the left to run a diagnosis.</div>';
+    e.innerHTML = '<div class="big">◈</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
     return;
   }
 
@@ -214,16 +241,13 @@ export function renderDiagnosis(
   hero.appendChild(conf);
   body.appendChild(hero);
 
-  // Reasoning
   const reason = el('div', 'reasoning');
   reason.appendChild(el('div', 'rlabel', 'Why this ranking'));
   reason.appendChild(el('p', '', d.reasoning));
   body.appendChild(reason);
 
-  // Cause bars
   body.appendChild(el('div', 'question-label', 'Possible causes · likelihood'));
-  const topCauses = d.causes.slice(0, 5);
-  for (const c of topCauses) {
+  for (const c of d.causes.slice(0, 5)) {
     const row = el('div', 'bar-row');
     const nameCell = el('div', 'name');
     nameCell.appendChild(el('b', '', c.name));
@@ -240,13 +264,12 @@ export function renderDiagnosis(
     body.appendChild(row);
   }
 
-  // Cause tree (visual)
   const treeLabel = el('div', 'question-label');
   treeLabel.style.marginTop = '16px';
   treeLabel.textContent = 'Cause tree';
   body.appendChild(treeLabel);
   const tree = el('div', 'cause-tree');
-  for (const c of topCauses.slice(0, 4)) {
+  for (const c of d.causes.slice(0, 4)) {
     const node = el('div', 'tree-node');
     node.appendChild(el('span', 'dot'));
     node.appendChild(el('span', '', c.name));
@@ -256,7 +279,6 @@ export function renderDiagnosis(
   }
   body.appendChild(tree);
 
-  // Actions
   const actionLabel = el('div', 'question-label');
   actionLabel.style.marginTop = '16px';
   actionLabel.textContent = 'Recommended troubleshooting sequence';
@@ -273,7 +295,6 @@ export function renderDiagnosis(
   }
   body.appendChild(actionList);
 
-  // Quality if available
   if (appState.lastImage?.quality) {
     const qLabel = el('div', 'question-label');
     qLabel.style.marginTop = '16px';
@@ -299,7 +320,6 @@ export function renderDiagnosis(
     body.appendChild(grid);
   }
 
-  // Feedback: which cause actually resolved it? -> writes to learning DB
   const fb = el('div', 'feedback');
   fb.appendChild(el('div', 'flabel', 'Engineer feedback — what actually fixed it? (feeds the learning database)'));
   const chips = el('div', 'chips');
@@ -316,7 +336,7 @@ export function renderDiagnosis(
     });
     clear(chips);
     const done = el('div', 'nlu-note');
-    done.innerHTML = `<b style="color:var(--accent)">✓ Case #${id} saved.</b> The knowledge base priors have been updated from ${cases.length} historical cases.`;
+    done.innerHTML = `<b style="color:var(--accent)">✓ Case #${id} saved.</b> Knowledge-base priors updated from ${cases.length} historical cases.`;
     chips.appendChild(done);
     renderReportTab(document.getElementById('tab-report') as HTMLElement);
   };
@@ -327,7 +347,6 @@ export function renderDiagnosis(
   fb.appendChild(chips);
   body.appendChild(fb);
 
-  // Save case (without resolution) + report buttons
   const row = el('div', 'freetext-row');
   const saveBtn = button('SAVE CASE', 'btn', async () => {
     const id = await saveCase({
@@ -347,10 +366,6 @@ export function renderDiagnosis(
   row.appendChild(saveBtn);
   row.appendChild(reportBtn);
   body.appendChild(row);
-
-  if (report.qualityScore !== undefined) {
-    // persist quality
-  }
 }
 
 export function switchTab(name: string): void {
@@ -360,10 +375,4 @@ export function switchTab(name: string): void {
   document.querySelectorAll('.tab-pane').forEach((p) => {
     p.classList.toggle('hidden', p.id !== `tab-${name}`);
   });
-}
-
-declare global {
-  interface Window {
-    __seedCases?: () => void;
-  }
 }

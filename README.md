@@ -23,15 +23,16 @@ Most teams ship a chatbot that wraps ChatGPT. This project inverts that:
 
 | # | Feature | Status |
 |---|---------|--------|
-| 1 | 5 smart intake questions + **dynamic follow-up questions** (Bonus) | ✅ |
-| 2 | Defect identification with confidence | ✅ |
-| 3 | Ranked possible causes with likelihood bars + **explained reasoning** | ✅ |
-| 4 | Troubleshooting action plan (sequential checks) | ✅ |
-| 5 | **Image recognition** via a real CV pipeline + synthetic demo generator + photo upload (Bonus 1) | ✅ |
-| 6 | **Dispensing Quality Score** (shape/size/position/defect-risk → /100) (Bonus 2) | ✅ |
-| 7 | **AI Learning Database** in IndexedDB — cases, resolved outcomes, prior updates (Bonus 3) | ✅ |
-| 8 | **PDF troubleshooting report** generated on-device (Bonus 4) | ✅ |
-| 9 | **Live Inspection** mode — synthetic simulator + webcam live + **ESP32-CAM placeholder** | ✅ (ESP32 stub) |
+| 1 | **Workbench**: merged workspace — AI chat sidebar + image inspection + diagnosis in one screen | ✅ |
+| 2 | 5 smart intake questions + **dynamic follow-up questions** (Bonus) | ✅ |
+| 3 | Defect identification with confidence | ✅ |
+| 4 | Ranked possible causes with likelihood bars + **explained reasoning** | ✅ |
+| 5 | Troubleshooting action plan (sequential checks) | ✅ |
+| 6 | **Image recognition** via a real CV pipeline + synthetic demo generator + photo upload (Bonus 1) | ✅ |
+| 7 | **Dispensing Quality Score** (shape/size/position/defect-risk → /100) (Bonus 2) | ✅ |
+| 8 | **AI Learning Database** in IndexedDB — cases, resolved outcomes, prior updates (Bonus 3) | ✅ |
+| 9 | **PDF troubleshooting report** generated on-device (Bonus 4) | ✅ |
+| 10 | **Live Inspection** mode — synthetic simulator + webcam live + **ESP32-CAM placeholder** | ✅ (ESP32 stub) |
 
 ## Getting started
 

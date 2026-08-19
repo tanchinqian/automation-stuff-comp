@@ -1,17 +1,15 @@
 import './style.css';
 import { el } from './ui/dom';
 import { renderTroubleshoot, switchTab } from './ui/troubleshoot';
-import { renderVision } from './ui/vision';
 import { renderLive } from './ui/live';
 import { renderDatabase } from './ui/database';
 import { renderReportTab } from './ui/report';
 
 const TABS = [
-  { id: 'troubleshoot', label: '01 · TROUBLESHOOT' },
-  { id: 'vision', label: '02 · IMAGE ANALYSIS' },
-  { id: 'live', label: '03 · LIVE INSPECTION' },
-  { id: 'database', label: '04 · LEARNING DB' },
-  { id: 'report', label: '05 · REPORT' },
+  { id: 'troubleshoot', label: '01 · WORKBENCH' },
+  { id: 'live', label: '02 · LIVE INSPECTION' },
+  { id: 'database', label: '03 · LEARNING DB' },
+  { id: 'report', label: '04 · REPORT' },
 ];
 
 const app = document.getElementById('app')!;
@@ -62,7 +60,6 @@ app.appendChild(panes);
 
 // Render each tab
 renderTroubleshoot(document.getElementById('tab-troubleshoot')!);
-renderVision(document.getElementById('tab-vision')!);
 renderLive(document.getElementById('tab-live')!);
 renderDatabase(document.getElementById('tab-database')!);
 renderReportTab(document.getElementById('tab-report')!);
