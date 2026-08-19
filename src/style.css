@@ -512,6 +512,9 @@ label,
   color: var(--accent);
   border-color: var(--accent-dim);
 }
+.msg.user {
+  flex-direction: row-reverse;
+}
 .msg.user .avatar {
   color: var(--chat-user);
   border-color: var(--chat-user);
@@ -528,7 +531,6 @@ label,
   background: rgba(46, 230, 168, 0.05);
 }
 .msg.user .bubble {
-  margin-left: auto;
   background: rgba(90, 169, 255, 0.06);
 }
 
