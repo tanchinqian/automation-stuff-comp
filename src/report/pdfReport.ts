@@ -8,6 +8,7 @@ export interface ReportData {
   actions: ActionStep[];
   quality?: QualityBreakdown;
   imageLabel?: string;
+  imageUrl?: string;
   engineerNotes?: string;
   engineLabel: string;
 }
@@ -220,8 +221,33 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   kv('Confidence',   `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
   para(data.diagnosis.defect.defectDescription);
 
-  // ── 3. AI Analysis ───────────────────────────────────────────────────────────
-  section('3. AI Analysis');
+  // ── 3. Image Inspection (optional) ─────────────────────────────────────────
+  if (data.imageUrl) {
+    section('3. Image Inspection');
+    try {
+      // Max display width is content width; scale height proportionally
+      const imgW = Math.min(CW, 320);
+      const imgH = Math.round(imgW * 0.75); // assume ~4:3 canvas
+      guard(imgH + 20);
+      // Draw a light border rect behind the image
+      doc.setFillColor(...C.light);
+      doc.roundedRect(ML, y, imgW, imgH, 4, 4, 'F');
+      doc.addImage(data.imageUrl, 'PNG', ML, y, imgW, imgH);
+      y += imgH + 6;
+      if (data.imageLabel) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...C.grey);
+        doc.text(data.imageLabel, ML, y);
+        y += 14;
+      }
+    } catch {
+      // Image embed failed silently — continue without it
+    }
+  }
+
+  // ── 4 (was 3). AI Analysis ──────────────────────────────────────────────────
+  section(data.imageUrl ? '4. AI Analysis' : '3. AI Analysis');
   if (data.diagnosis.activeSymptoms.length) {
     para(`Symptom profile (${data.diagnosis.activeSymptoms.length} indicators):`, { color: C.grey, size: 8.5, gap: 2 });
     para(data.diagnosis.activeSymptoms.join('  ·  '), { size: 8.5, color: C.body });

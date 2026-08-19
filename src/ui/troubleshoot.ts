@@ -141,18 +141,25 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const runFromFreeText = async (text: string) => {
     userSay(text);
-    nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
-    let parsed = await llm.parse(text);
-    if (parsed.material) appState.material = parsed.material;
-    addSymptoms(parsed.symptoms as SymptomId[]);
-    nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
-    if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
-      const fallback = await new HeuristicNlu().parse(text);
-      addSymptoms(fallback.symptoms as SymptomId[]);
-      nluNote.innerHTML += ' · fallback rules applied';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'PROCESSING…';
+    try {
+      nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
+      let parsed = await llm.parse(text);
+      if (parsed.material) appState.material = parsed.material;
+      addSymptoms(parsed.symptoms as SymptomId[]);
+      nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
+      if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
+        const fallback = await new HeuristicNlu().parse(text);
+        addSymptoms(fallback.symptoms as SymptomId[]);
+        nluNote.innerHTML += ' · fallback rules applied';
+      }
+      aiSay(`Understood - updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
+      finishIntake(true);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'ANALYZE';
     }
-    aiSay(`Understood - updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
-    finishIntake(true);
   };
 
   sendBtn.onclick = () => {
