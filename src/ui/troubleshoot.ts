@@ -66,6 +66,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const queue: PendingQuestion[] = [];
   let followUpsAsked = 0;
   let asked = 0;
+  let questionCount = 0;
   let intakeDone = false;
 
   const aiSay = (text: string, html = false) => {
@@ -87,8 +88,9 @@ export function renderTroubleshoot(host: HTMLElement): void {
   };
 
   const askQuestion = (q: QuestionDef) => {
+    questionCount++;
     const block = el('div', 'question-block');
-    block.appendChild(el('div', 'question-label', `QUESTION ${queue.length + 1}`));
+    block.appendChild(el('div', 'question-label', `QUESTION ${questionCount}`));
     block.appendChild(el('div', 'question-text', q.text));
 
     if (q.intent === 'single' && q.options) {
@@ -208,7 +210,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
-    aiSay('Welcome to DISPENSE.AI - the AI Dispensing Defect Detective.');
+    aiSay('Welcome to <b>DISPENSE.AI</b> — the AI Dispensing Defect Detective.', true);
     aiSay('I will ask up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words, or run an image inspection on the left and feed it into the diagnosis.');
     nextQuestion();
   }, 150);
