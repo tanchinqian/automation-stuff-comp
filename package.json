@@ -1,0 +1,21 @@
+{
+  "name": "nsw-dispense-ai",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI Dispensing Defect Detective - AI Horizon Solution Challenge 2026",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers && node .test.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.7.1",
+    "jspdf": "^3.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

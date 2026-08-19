@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.test.mjs
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
