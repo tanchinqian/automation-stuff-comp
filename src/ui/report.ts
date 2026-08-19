@@ -47,6 +47,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
       actions: appState.lastActions ?? [],
       quality: appState.lastImage?.quality,
       imageLabel: appState.lastImage?.label,
+      imageUrl: appState.lastImage?.imageUrl,
       engineerNotes: notes.value.trim() || undefined,
       engineLabel: appState.lastEngineLabel,
     });

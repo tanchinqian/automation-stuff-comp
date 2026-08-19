@@ -233,29 +233,36 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const runFromFreeText = async (text: string) => {
     userSay(text);
-    nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
-    let parsed = await llm.parse(text);
-    if (parsed.material) appState.material = parsed.material;
-    addSymptoms(parsed.symptoms as SymptomId[]);
-    if (parsed.emphasis?.length) appState.emphasized = new Set(parsed.emphasis as SymptomId[]);
-    nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
-    if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
-      const fallback = await new HeuristicNlu().parse(text);
-      addSymptoms(fallback.symptoms as SymptomId[]);
-      nluNote.innerHTML += ' · fallback rules applied';
-    }
-    updateEvidence();
-    const labelList = [...appState.symptoms].map((s) => s.replace(/-/g, ' '));
-    const emphasized = parsed.emphasis?.length ? parsed.emphasis.map((s) => s.replace(/-/g, ' ')) : undefined;
-    await aiRespond(
-      { intent: 'acknowledge', userText: text, symptoms: labelList, emphasized, material: appState.material ? MATERIALS[appState.material] : undefined },
-      `Understood - ${parsed.summary}${emphasized?.length ? ` I will weigh ${emphasized.join(', ')} more heavily.` : ''}`,
-    );
-    // continue asking remaining relevant questions, or finish if all answered
-    if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
-      finishIntake();
-    } else {
-      nextQuestion();
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'PROCESSING…';
+    try {
+      nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
+      let parsed = await llm.parse(text);
+      if (parsed.material) appState.material = parsed.material;
+      addSymptoms(parsed.symptoms as SymptomId[]);
+      if (parsed.emphasis?.length) appState.emphasized = new Set(parsed.emphasis as SymptomId[]);
+      nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
+      if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
+        const fallback = await new HeuristicNlu().parse(text);
+        addSymptoms(fallback.symptoms as SymptomId[]);
+        nluNote.innerHTML += ' · fallback rules applied';
+      }
+      updateEvidence();
+      const labelList = [...appState.symptoms].map((s) => s.replace(/-/g, ' '));
+      const emphasized = parsed.emphasis?.length ? parsed.emphasis.map((s) => s.replace(/-/g, ' ')) : undefined;
+      await aiRespond(
+        { intent: 'acknowledge', userText: text, symptoms: labelList, emphasized, material: appState.material ? MATERIALS[appState.material] : undefined },
+        `Understood - ${parsed.summary}${emphasized?.length ? ` I will weigh ${emphasized.join(', ')} more heavily.` : ''}`,
+      );
+      // continue asking remaining relevant questions, or finish if all answered
+      if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
+        finishIntake();
+      } else {
+        nextQuestion();
+      }
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'ANALYZE';
     }
   };
 
