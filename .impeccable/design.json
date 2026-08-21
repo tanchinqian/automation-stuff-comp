@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "title": "Design System: DISPENSE.AI",
+  "extensions": {
+    "colorMeta": {
+      "phosphor-green": { "role": "primary", "displayName": "Phosphor Green", "canonical": "#2ee6a8" },
+      "phosphor-green-dim": { "role": "primary", "displayName": "Phosphor Green Dim", "canonical": "#1fbf89" },
+      "warn-amber": { "role": "secondary", "displayName": "Warn Amber", "canonical": "#ffb64d" },
+      "danger-red": { "role": "secondary", "displayName": "Danger Red", "canonical": "#ff5f6d" },
+      "chat-user-blue": { "role": "secondary", "displayName": "Chat User Blue", "canonical": "#5aa9ff" },
+      "on-accent": { "role": "primary", "displayName": "On Accent", "canonical": "#06130e" },
+      "amber-bar-deep": { "role": "secondary", "displayName": "Amber Bar Deep", "canonical": "#b8862f" },
+      "danger-bar-deep": { "role": "secondary", "displayName": "Danger Bar Deep", "canonical": "#a93a45" },
+      "surface-0": { "role": "neutral", "displayName": "Surface 0", "canonical": "#07090d" },
+      "surface-1": { "role": "neutral", "displayName": "Surface 1", "canonical": "#0d1016" },
+      "surface-2": { "role": "neutral", "displayName": "Surface 2", "canonical": "#12161f" },
+      "surface-3": { "role": "neutral", "displayName": "Surface 3", "canonical": "#1a1f2b" },
+      "console-ink": { "role": "neutral", "displayName": "Console Ink", "canonical": "#d7dde6" },
+      "console-ink-dim": { "role": "neutral", "displayName": "Console Ink Dim", "canonical": "#8a93a6" },
+      "console-ink-faint": { "role": "neutral", "displayName": "Console Ink Faint", "canonical": "#5a6272" },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#232a38" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Panel titles and brand head." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, reasoning, action detail." },
+      "label": { "displayName": "Label", "purpose": "Section labels, chip text, status." }
+    },
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default easing for reveals and state transitions." },
+      { "name": "bar-grow", "value": "0.6s cubic-bezier(0.16,1,0.3,1) scaleX(0->1)", "purpose": "Cause bars grow in via transform, never width." }
+    ],
+    "breakpoints": [
+      { "name": "stack", "value": "980px", "purpose": "Workbench/cols collapse to a single column below this." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action: run analysis, generate report.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">ANALYZE</button>",
+      "css": ".ds-btn-primary { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.05em; font-weight: 700; color: #06130e; background: #2ee6a8; border: 1px solid #2ee6a8; border-radius: 8px; padding: 9px 16px; cursor: pointer; transition: box-shadow .15s ease, filter .15s ease, transform .15s ease; } .ds-btn-primary:hover { box-shadow: 0 0 14px rgba(46,230,168,0.16); filter: brightness(1.05); } .ds-btn-primary:active { transform: translateY(1px) scale(0.99); } .ds-btn-primary:focus-visible { outline: 2px solid #2ee6a8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Secondary action: save case, feed diagnosis.",
+      "html": "<button class=\"ds-btn\" type=\"button\">SAVE CASE</button>",
+      "css": ".ds-btn { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.05em; color: #d7dde6; background: #1a1f2b; border: 1px solid #232a38; border-radius: 8px; padding: 9px 16px; cursor: pointer; transition: border-color .15s ease, color .15s ease, transform .15s ease; } .ds-btn:hover { border-color: #1fbf89; color: #2ee6a8; } .ds-btn:active { transform: translateY(1px) scale(0.99); } .ds-btn:focus-visible { outline: 2px solid #2ee6a8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Option Chip",
+      "kind": "chip",
+      "refersTo": "option-chip",
+      "description": "Multiple-choice answer and scene-selection chip.",
+      "html": "<button class=\"ds-chip\" type=\"button\">Inconsistent sizes</button>",
+      "css": ".ds-chip { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8a93a6; background: #12161f; border: 1px solid #232a38; border-radius: 8px; padding: 9px 13px; cursor: pointer; text-align: left; transition: border-color .12s ease, color .12s ease, background-color .12s ease, transform .12s ease; } .ds-chip:hover { border-color: #1fbf89; color: #d7dde6; background: #1a1f2b; } .ds-chip:active { transform: translateY(1px) scale(0.99); } .ds-chip[aria-pressed=\"true\"], .ds-chip.selected { border-color: #2ee6a8; color: #2ee6a8; background: rgba(46,230,168,0.08); box-shadow: 0 0 14px rgba(46,230,168,0.16); } .ds-chip:focus-visible { outline: 2px solid #2ee6a8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Standard console panel with head + scanline body.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><span class=\"ds-tick\"></span><span class=\"ds-title\">Diagnosis</span><span class=\"ds-hint\">live analysis</span></div><div class=\"ds-panel-body\">Content</div></section>",
+      "css": ".ds-panel { background: #0d1016; border: 1px solid #232a38; border-radius: 10px; overflow: hidden; position: relative; } .ds-panel-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #232a38; background: #12161f; } .ds-tick { width: 8px; height: 8px; border: 1px solid #2ee6a8; transform: rotate(45deg); } .ds-title { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #d7dde6; } .ds-hint { margin-left: auto; font-size: 11px; color: #5a6272; } .ds-panel-body { padding: 16px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Free-text intake and search input.",
+      "html": "<input class=\"ds-input\" placeholder=\"Describe the problem\u2026\" aria-label=\"Describe the problem\" />",
+      "css": ".ds-input { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #d7dde6; background: #12161f; border: 1px solid #232a38; border-radius: 8px; padding: 10px 12px; outline: none; } .ds-input::placeholder { color: #5a6272; } .ds-input:focus { border-color: #1fbf89; box-shadow: 0 0 0 2px rgba(46,230,168,0.35); }"
+    },
+    {
+      "name": "Cause Bar",
+      "kind": "custom",
+      "refersTo": "bar-fill",
+      "description": "Signature ranked-cause likelihood bar (explainable AI).",
+      "html": "<div class=\"ds-bar\"><div class=\"ds-bar-name\"><b>Air trapped in syringe</b><span>Air</span></div><div class=\"ds-bar-track\"><div class=\"ds-bar-fill\" style=\"width:91%\"></div></div><span class=\"ds-bar-pct\">91%</span></div>",
+      "css": ".ds-bar { display: grid; grid-template-columns: 130px 1fr 46px; align-items: center; gap: 10px; padding: 7px 0; } .ds-bar-name { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #8a93a6; } .ds-bar-name b { color: #d7dde6; font-weight: 600; } .ds-bar-name span { display: block; font-size: 10px; color: #5a6272; text-transform: uppercase; } .ds-bar-track { height: 9px; background: #1a1f2b; border-radius: 4px; overflow: hidden; } .ds-bar-fill { height: 100%; background: linear-gradient(90deg, #1fbf89, #2ee6a8); transform-origin: left; transform: scaleX(0); animation: dsBarGrow .6s cubic-bezier(0.16,1,0.3,1) forwards; border-radius: 4px; } @keyframes dsBarGrow { to { transform: scaleX(1); } } .ds-bar-pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #d7dde6; text-align: right; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Precision Lab Console",
+    "overview": "DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a near-black control surface, phosphor-green readouts, monospace numerals, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: crisp corners, thin borders, tabular numerals, and status conveyed through a single disciplined accent rather than decorative color.",
+    "keyCharacteristics": [
+      "Dark charcoal surfaces with a single phosphor-green accent (plus amber/danger reserved for semantic states).",
+      "Monospace for numerals, labels, and panel titles; sans-serif for body and descriptions.",
+      "Dense, cockpit-grade spacing with hairline separators and tight, precise cards.",
+      "Instrument markers: corner ticks, scanline texture, cause-tree visuals, tabular numerals."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "The phosphor-green accent is the only page accent. Amber and red are used only to carry semantic status (warning, defect, danger); blue only for the user chat. Any new color must earn a semantic role before it may appear.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "All numeric readouts set font-variant-numeric: tabular-nums so values align in columns and feel like instrument readouts.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat and separated by tone and hairline borders. The phosphor glow appears only as a state response (active, selected, hover), never as ambient decoration.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep phosphor-green as the single accent; use amber/red only for semantic status and blue only for the user chat.",
+      "Do set every numeric readout in mono with tabular-nums.",
+      "Do animate bars and reveals with transform/opacity only (scaleX), and honor prefers-reduced-motion.",
+      "Do show visible :focus-visible rings on all interactive controls.",
+      "Do keep the flat, tonal, hairline-separated surface model; no decorative drop shadows."
+    ],
+    "donts": [
+      "Don't add a second accent color or neon glows; the phosphor green is the whole palette's voice.",
+      "Don't animate width/height (layout thrash); use transform.",
+      "Don't use thick colored side-borders on cards or bubbles (reads as an AI tell); use tinted backgrounds and full hairlines instead.",
+      "Don't switch themes between sections; the page is dark-mode-only and locked.",
+      "Don't hide focus outlines or ship pill-shaped containers for standard cards."
+    ]
+  }
+}
