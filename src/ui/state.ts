@@ -1,6 +1,6 @@
 import type { DiagnosticReport } from '../engine/scorer';
 import type { ActionStep } from '../engine/actions';
-import type { ImageAnalysis } from '../vision/analyzeImage';
+import type { BoardAnalysis } from '../vision/analyzeImage';
 import type { QualityBreakdown } from '../vision/qualityScore';
 import type { MaterialType, SymptomId } from '../engine/types';
 
@@ -9,7 +9,7 @@ export interface AppState {
   symptoms: Set<SymptomId>;
   lastDiagnosis?: DiagnosticReport;
   lastActions?: ActionStep[];
-  lastImage?: { label: string; analysis: ImageAnalysis; quality?: QualityBreakdown; imageUrl: string };
+  lastImage?: { label: string; board?: BoardAnalysis; quality?: QualityBreakdown; imageUrl: string };
   lastEngineLabel: string;
 }
 

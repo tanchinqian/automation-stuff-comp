@@ -51,12 +51,43 @@ src/
   engine/     knowledge base (defects/causes/symptoms/rules), evidence scoring,
               question flow, action plan generator
   nlu/        layered LLM router (Gemini Nano -> transformers.js -> heuristics)
-  vision/     computer-vision pipeline + synthetic defect generator + quality score
+  vision/     computer-vision pipeline (dot + SPI/board modes), quality score
+  data/       swappable dataset providers (PCB-AoI, custom) + registry
   db/         IndexedDB learning database + case-based priors + demo seed data
   report/     on-device PDF report generator (jsPDF)
   live/       ESP32-CAM live-stream wiring point (placeholder)
-  ui/         UI modules (troubleshoot console, vision, live, learning DB, report)
+  ui/         UI modules (workbench, vision gallery, live, learning DB, report)
+scripts/
+  generate-placeholder-boards.mjs   builds schematic demo boards + boards.json
+  build-boards.mjs                  converts a real VOC dataset into boards.json
 ```
+
+## Real inspection data (swappable dataset)
+
+The Workbench inspection panel analyzes real SPI/PCB boards via a **classical
+per-pad computer-vision pipeline** (no model, fully offline). Boards come from
+a swappable dataset provider in `src/data/`:
+
+- **Active dataset** is chosen in `src/data/datasetConfig.ts`.
+- **PCB-AoI** (`src/data/providers/pcbAoi.ts`) is the target real dataset
+  (solder-paste SPI: less-paste, missing, bridging, misalignment), read from
+  `public/boards/boards.json`.
+- The repo currently ships **schematic placeholder boards** so the pipeline and
+  gallery run end-to-end offline. To bundle the real dataset:
+
+  ```
+  npm i -D sharp
+  node scripts/build-boards.mjs --data <path-to-pcb-aoi>
+  ```
+
+  This parses the Pascal-VOC annotations at build time into `boards.json` and
+  downscales images. See `ATTRIBUTION.md` for dataset credits.
+
+- A **Custom provider** (`src/data/providers/custom.ts`) is the escape hatch for
+  future datasets or live photo uploads without touching the CV pipeline.
+
+Two detection modes exist in `src/vision/analyzeImage.ts`:
+`analyzeImage` (round dispensing dots) and `analyzeBoard` (per-pad SPI).
 
 ## ESP32-CAM live stream (placeholder)
 

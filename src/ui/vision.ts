@@ -1,82 +1,96 @@
-import { analyzeImage, imageDataFromCanvas, CLASS_LABELS, type ImageAnalysis } from '../vision/analyzeImage';
+import { analyzeBoard, BOARD_CLASS_LABELS, imageDataFromCanvas, type BoardAnalysis, type PadResult } from '../vision/analyzeImage';
 import { generateSyntheticImage, type SyntheticScene } from '../vision/syntheticGenerator';
-import { qualityScore, type QualityBreakdown } from '../vision/qualityScore';
+import { boardQualityScore, type QualityBreakdown } from '../vision/qualityScore';
+import { createRegistry } from '../data';
+import type { BoardImage, DatasetProvider } from '../data/types';
 import { el, clear, button, stars } from './dom';
 
 export interface VisionResult {
-  analysis: ImageAnalysis;
-  imageData: ImageData;
-  canvas: HTMLCanvasElement;
   label: string;
-  quality: QualityBreakdown;
   imageUrl: string;
+  board?: BoardAnalysis;
+  quality?: QualityBreakdown;
 }
 
-const SCENES: SyntheticScene[] = ['perfect', 'undersized', 'oversized', 'missing', 'irregular', 'spread', 'mixed'];
+export interface InspectionPanelHandle {
+  panel: HTMLElement;
+  getResult: () => VisionResult | null;
+}
+
+const SYNTHETIC_SCENES: SyntheticScene[] = ['perfect', 'undersized', 'oversized', 'missing', 'irregular', 'spread'];
 
 const CLASS_COLORS: Record<string, string> = {
-  perfect: '#2ee6a8',
-  undersized: '#ffb64d',
-  oversized: '#5aa9ff',
+  good: '#2ee6a8',
+  'less-paste': '#ffb64d',
   missing: '#ff5f6d',
-  irregular: '#a78bfa',
-  spread: '#ffb64d',
+  bridging: '#a78bfa',
+  misalignment: '#5aa9ff',
 };
 
 /**
- * Builds the inspection panel (synthetic scene picker + photo upload +
- * CV canvas + quality cards). Fires `onAnalyze` whenever a frame is run
- * through the computer-vision pipeline.
+ * Workbench inspection panel, fed by the dataset registry. Swapping the
+ * active dataset (see src/data/datasetConfig.ts) changes which boards the
+ * gallery shows without touching this component or the CV pipeline.
  */
 export function createInspectionPanel(opts: {
   onAnalyze?: (r: VisionResult) => void;
   onFeed?: (r: VisionResult) => void;
-} = {}): {
-  panel: HTMLElement;
-  run: () => void;
-  getResult: () => VisionResult | null;
-} {
+} = {}): InspectionPanelHandle {
   const { onAnalyze = () => {}, onFeed = () => {} } = opts;
   const body = el('div', 'panel-body');
   let lastResult: VisionResult | null = null;
-  let currentScene: SyntheticScene = 'mixed';
   let lastCanvas: HTMLCanvasElement | null = null;
   let lastImageData: ImageData | null = null;
+  let lastPadRois: { x: number; y: number; w: number; h: number }[] | undefined;
   let lastLabel = '';
+  let lastBoard: BoardAnalysis | null = null;
 
-  // Scene picker
-  body.appendChild(el('div', 'question-label', 'Synthetic demo scene'));
-  const picker = el('div', 'scene-picker');
-  const chips = new Map<SyntheticScene, HTMLButtonElement>();
-  for (const s of SCENES) {
-    const chip = el('button', 'scene-chip', s.toUpperCase()) as HTMLButtonElement;
-    chip.type = 'button';
-    if (s === currentScene) chip.classList.add('selected');
-    chip.onclick = () => {
-      currentScene = s;
-      chips.forEach((c) => c.classList.remove('selected'));
-      chip.classList.add('selected');
-      gen();
-    };
-    picker.appendChild(chip);
-    chips.set(s, chip);
-  }
-  body.appendChild(picker);
+  const registry = createRegistry();
 
-  // Canvas frame
+  // ---- Source tabs: dataset gallery + schematic demo ----
+  const sourceTabs = el('div', 'nav-tabs');
+  sourceTabs.style.marginBottom = '12px';
+  const boardTab = el('button', 'nav-tab active', 'REAL BOARDS') as HTMLButtonElement;
+  const synthTab = el('button', 'nav-tab', 'SCHEMATIC') as HTMLButtonElement;
+  boardTab.type = 'button';
+  synthTab.type = 'button';
+  boardTab.setAttribute('aria-selected', 'true');
+  synthTab.setAttribute('aria-selected', 'false');
+  sourceTabs.appendChild(boardTab);
+  sourceTabs.appendChild(synthTab);
+  body.appendChild(sourceTabs);
+
+  const galleryWrap = el('div', '');
+  const synthWrap = el('div', 'hidden', '');
+  body.appendChild(galleryWrap);
+  body.appendChild(synthWrap);
+
+  // ---- Board gallery ----
+  const galleryLabel = el('div', 'question-label', 'Select a real inspection board');
+  galleryWrap.appendChild(galleryLabel);
+  const gallery = el('div', 'scene-picker');
+  galleryWrap.appendChild(gallery);
+
+  // ---- Schematic scene picker ----
+  const synthLabel = el('div', 'question-label', 'Schematic dispensing demo (fallback)');
+  synthWrap.appendChild(synthLabel);
+  const synthPicker = el('div', 'scene-picker');
+  synthWrap.appendChild(synthPicker);
+
+  // ---- Canvas frame ----
   const frame = el('div', 'canvas-frame');
   const canvas = document.createElement('canvas');
   canvas.width = 300;
   canvas.height = 240;
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Dispensing inspection image with computer-vision detection overlay');
+  canvas.setAttribute('aria-label', 'Inspection image with computer-vision detection overlay');
   frame.appendChild(canvas);
   body.appendChild(frame);
   const legend = el('div', 'overlay-legend', '');
   legend.setAttribute('aria-live', 'polite');
   body.appendChild(legend);
 
-  // Buttons
+  // ---- Buttons ----
   const row = el('div', 'freetext-row');
   const uploadLabel = el('label', 'btn', 'UPLOAD PHOTO') as HTMLLabelElement;
   const fileInput = document.createElement('input');
@@ -85,7 +99,7 @@ export function createInspectionPanel(opts: {
   fileInput.style.display = 'none';
   uploadLabel.style.cursor = 'pointer';
   uploadLabel.appendChild(fileInput);
-  const analyzeBtn = button('ANALYZE FRAME', 'btn primary');
+  const analyzeBtn = button('ANALYZE BOARD', 'btn primary');
   const feedBtn = button('FEED TO DIAGNOSIS', 'btn');
   feedBtn.disabled = true;
   row.appendChild(uploadLabel);
@@ -93,39 +107,111 @@ export function createInspectionPanel(opts: {
   row.appendChild(feedBtn);
   body.appendChild(row);
 
-  // Quality cards container (filled after analyze)
   const qualityBox = el('div', '');
   body.appendChild(qualityBox);
 
-  const gen = () => {
-    const g = generateSyntheticImage(currentScene);
+  const clearBoard = () => {
+    lastBoard = null;
+    lastPadRois = undefined;
+    clear(qualityBox);
+    feedBtn.disabled = true;
+  };
+
+  const loadBoard = async (board: BoardImage) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 900 / img.naturalWidth);
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      lastCanvas = canvas;
+      lastImageData = imageDataFromCanvas(canvas);
+      // board.json padRois are stored normalised (0..1); analyzeBoard scales to pixels
+      lastPadRois = board.padRois?.length ? board.padRois : undefined;
+      lastLabel = board.label;
+      clearBoard();
+      const gtLabel = board.class === 'unknown' ? 'unknown' : BOARD_CLASS_LABELS[board.class];
+      legend.textContent = `${board.label} · ground truth: ${gtLabel} · run ANALYZE BOARD`;
+    };
+    img.src = board.src;
+  };
+
+  // Populate gallery from the active dataset provider
+  const provider = registry.get('pcb-aoi') as DatasetProvider;
+  provider.list().then((boards) => {
+    for (const b of boards) {
+      const chip = el('button', 'scene-chip', b.class === 'good' ? '✓ ' + b.class.replace(/-/g, ' ') : '⚠ ' + b.class.replace(/-/g, ' ')) as HTMLButtonElement;
+      chip.type = 'button';
+      chip.title = b.label;
+      chip.onclick = () => {
+        gallery.querySelectorAll('.scene-chip').forEach((c) => c.classList.remove('selected'));
+        chip.classList.add('selected');
+        loadBoard(b);
+      };
+      gallery.appendChild(chip);
+    }
+  });
+
+  // Schematic picker (kept for Live fallback + manual demo)
+  const genSchematic = (scene: SyntheticScene) => {
+    const g = generateSyntheticImage(scene);
     canvas.width = g.canvas.width;
     canvas.height = g.canvas.height;
     canvas.getContext('2d')!.drawImage(g.canvas, 0, 0);
     lastCanvas = canvas;
     lastImageData = g.canvasToImageData();
-    lastLabel = `Synthetic: ${currentScene.toUpperCase()}`;
-    legend.textContent = `Scene: ${currentScene.toUpperCase()} · generated on-device · run ANALYZE FRAME`;
-    clear(qualityBox);
-    feedBtn.disabled = true;
+    lastPadRois = undefined;
+    lastLabel = `Schematic: ${scene.toUpperCase()}`;
+    clearBoard();
+    legend.textContent = `Schematic scene: ${scene.toUpperCase()} · generated on-device · run ANALYZE BOARD`;
+  };
+  for (const s of SYNTHETIC_SCENES) {
+    const chip = el('button', 'scene-chip', s.toUpperCase()) as HTMLButtonElement;
+    chip.type = 'button';
+    chip.onclick = () => {
+      synthPicker.querySelectorAll('.scene-chip').forEach((c) => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      genSchematic(s);
+    };
+    synthPicker.appendChild(chip);
+  }
+
+  // Source tab switching
+  boardTab.onclick = () => {
+    boardTab.classList.add('active');
+    synthTab.classList.remove('active');
+    boardTab.setAttribute('aria-selected', 'true');
+    synthTab.setAttribute('aria-selected', 'false');
+    galleryWrap.classList.remove('hidden');
+    synthWrap.classList.add('hidden');
+  };
+  synthTab.onclick = () => {
+    synthTab.classList.add('active');
+    boardTab.classList.remove('active');
+    synthTab.setAttribute('aria-selected', 'true');
+    boardTab.setAttribute('aria-selected', 'false');
+    synthWrap.classList.remove('hidden');
+    galleryWrap.classList.add('hidden');
   };
 
+  // Upload handling
   const loadFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const maxW = 720;
+        const maxW = 900;
         const scale = Math.min(1, maxW / img.width);
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
         lastCanvas = canvas;
         lastImageData = imageDataFromCanvas(canvas);
+        lastPadRois = undefined;
         lastLabel = `Uploaded: ${file.name}`;
-        legend.textContent = `Uploaded ${file.name} (${canvas.width}x${canvas.height}) · run ANALYZE FRAME`;
-        clear(qualityBox);
-        feedBtn.disabled = true;
+        clearBoard();
+        legend.textContent = `Uploaded ${file.name} · run ANALYZE BOARD`;
       };
       img.src = reader.result as string;
     };
@@ -138,20 +224,20 @@ export function createInspectionPanel(opts: {
 
   const run = () => {
     if (!lastImageData) {
-      legend.textContent = '⚠ No frame to analyze - generate or upload one first.';
+      legend.textContent = 'No frame to analyze - pick a board, generate a schematic, or upload a photo first.';
       return;
     }
-    const analysis = analyzeImage(lastImageData);
-    drawOverlay(canvas, analysis, lastImageData);
-    const quality = qualityScore(analysis);
-    const defect = analysis.defectDetected ? CLASS_LABELS[analysis.dominantClass] : 'no significant defect';
-    legend.innerHTML = `Detected <b>${analysis.metrics.count}</b> dot(s) · <b style="color:var(--${analysis.dominantClass === 'spread' || analysis.dominantClass === 'undersized' ? 'warn' : analysis.dominantClass === 'missing' ? 'danger' : 'accent'})">${CLASS_LABELS[analysis.dominantClass].toUpperCase()}</b> · missing: ${analysis.metrics.missingCount}`;
+    const board = analyzeBoard(lastImageData, lastPadRois);
+    lastBoard = board;
+    drawBoardOverlay(canvas, board);
+    const quality = boardQualityScore(board);
+    const dominant = BOARD_CLASS_LABELS[board.dominantDefect];
+    legend.innerHTML = `Pads: <b>${board.pads.length}</b> · dominant: <b style="color:var(--${board.dominantDefect === 'missing' ? 'danger' : board.dominantDefect === 'good' ? 'accent' : 'warn'})">${dominant.toUpperCase()}</b> · defects: ${board.defectCounts['less-paste']} less / ${board.defectCounts.missing} missing / ${board.defectCounts.bridging} bridge / ${board.defectCounts.misalignment} align`;
 
-    // Quality cards
     clear(qualityBox);
     const qh = el('div', 'q-hero');
     qh.appendChild(el('div', 'score', `${quality.overall}`));
-    qh.appendChild(el('div', 'score-label', `quality / 100 · ${defect}`));
+    qh.appendChild(el('div', 'score-label', `board quality / 100 · ${dominant}`));
     qualityBox.appendChild(qh);
     const grid = el('div', 'q-grid');
     const card = (label: string, val: number) => {
@@ -161,58 +247,50 @@ export function createInspectionPanel(opts: {
       c.appendChild(el('div', 'qval', `${val} / 5`));
       grid.appendChild(c);
     };
-    card('Shape', quality.shape);
-    card('Size', quality.size);
+    card('Shape / fill', quality.shape);
+    card('Volume', quality.size);
     card('Position', quality.position);
     card('Defect risk', quality.defectRisk);
     qualityBox.appendChild(grid);
 
     lastResult = {
-      analysis,
-      imageData: lastImageData,
-      canvas,
-      label: `${lastLabel} · ${CLASS_LABELS[analysis.dominantClass]}`,
-      quality,
+      label: lastLabel,
       imageUrl: canvas.toDataURL(),
+      board,
+      quality,
     };
-    feedBtn.disabled = !analysis.defectDetected;
+    feedBtn.disabled = !board.defectDetected;
     onAnalyze?.(lastResult);
   };
   analyzeBtn.onclick = run;
 
-  // Feed callback wired by caller
   feedBtn.onclick = () => {
     if (lastResult) onFeed(lastResult);
   };
-
-  gen();
 
   const panelEl = el('section', 'panel');
   const head = el('div', 'panel-head');
   head.appendChild(el('span', 'tick'));
   head.appendChild(el('span', 'title', 'Image Inspection'));
-  head.appendChild(el('span', 'hint', 'CV pipeline · Otsu → connected components'));
+  head.appendChild(el('span', 'hint', 'real board · classical per-pad CV'));
   panelEl.appendChild(head);
   panelEl.appendChild(body);
 
   return {
     panel: panelEl,
-    run,
     getResult: () => lastResult,
   };
 }
 
-function drawOverlay(canvas: HTMLCanvasElement, analysis: ImageAnalysis, imageData: ImageData): void {
+function drawBoardOverlay(canvas: HTMLCanvasElement, board: BoardAnalysis): void {
   const ctx = canvas.getContext('2d')!;
-  ctx.putImageData(imageData, 0, 0);
-  for (const d of analysis.dots) {
-    ctx.beginPath();
-    ctx.arc(d.cx, d.cy, 10, 0, Math.PI * 2);
-    ctx.strokeStyle = CLASS_COLORS[d.class] + 'cc';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.fillStyle = CLASS_COLORS[d.class];
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText(CLASS_LABELS[d.class].split(' ')[0].toUpperCase(), d.cx + 12, d.cy - 8);
+  ctx.lineWidth = 2;
+  for (const pad of board.pads) {
+    const { x, y, w, h } = pad.rect;
+    ctx.strokeStyle = CLASS_COLORS[pad.class] + 'cc';
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = CLASS_COLORS[pad.class];
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase(), x + 2, y - 4);
   }
 }

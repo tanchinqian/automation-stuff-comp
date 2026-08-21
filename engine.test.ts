@@ -2,8 +2,69 @@ import { runDiagnosis, identifyDefect } from './src/engine/scorer.ts';
 import { buildActionPlan } from './src/engine/actions.ts';
 import { seedCases, priorOverrides } from './src/db/caseDB.ts';
 import { HeuristicNlu } from './src/nlu/llmRouter.ts';
-import { qualityScore } from './src/vision/qualityScore.ts';
+import { qualityScore, boardQualityScore, boardClassToSymptoms } from './src/vision/qualityScore.ts';
+import { analyzeBoard, boardClassFromName, type BoardAnalysis } from './src/vision/analyzeImage.ts';
 import type { ImageAnalysis } from './src/vision/analyzeImage.ts';
+
+/** Build a minimal ImageData-like object for the classical board CV in Node. */
+function makeImage(w: number, h: number, draw: (x: number, y: number) => number): { width: number; height: number; data: Uint8ClampedArray } {
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const g = draw(x, y);
+      const o = (y * w + x) * 4;
+      data[o] = g;
+      data[o + 1] = g;
+      data[o + 2] = g;
+      data[o + 3] = 255;
+    }
+  }
+  return { width: w, height: h, data };
+}
+
+/** Build a synthetic board: WxH px, with `cols`x`rows` pads of padW x padH at a gap. */
+function buildBoard(opts: {
+  cols: number;
+  rows: number;
+  padW: number;
+  padH: number;
+  gapX: number;
+  gapY: number;
+  margin: number;
+  paste: (r: number, c: number) => number; // fill ratio 0..1 of paste on this pad
+  bridgeCol?: number; // pad column that bridges to its right neighbour
+}): { img: { width: number; height: number; data: Uint8ClampedArray }; padRois: { x: number; y: number; w: number; h: number }[] } {
+  const { cols, rows, padW, padH, gapX, gapY, margin, paste, bridgeCol } = opts;
+  const W = margin * 2 + cols * padW + (cols - 1) * gapX;
+  const H = margin * 2 + rows * padH + (rows - 1) * gapY;
+  const img = makeImage(W, H, (x, y) => 200); // light board
+  const padRois = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = margin + c * (padW + gapX);
+      const y = margin + r * (padH + gapY);
+      const fill = paste(r, c);
+      // draw paste as grey (value 90) within the pad area scaled by fill
+      for (let py = y; py < y + padH; py++) {
+        for (let px = x; px < x + padW; px++) {
+          if (bridgeCol !== undefined && c === bridgeCol && px > x + padW * 0.6) {
+            // extend paste beyond pad toward neighbour
+            img.data[(py * W + (px + gapX + 4)) * 4] = 90;
+            img.data[(py * W + (px + gapX + 4)) * 4 + 1] = 90;
+            img.data[(py * W + (px + gapX + 4)) * 4 + 2] = 90;
+          }
+          if (px < x + padW * fill) {
+            img.data[(py * W + px) * 4] = 90;
+            img.data[(py * W + px) * 4 + 1] = 90;
+            img.data[(py * W + px) * 4 + 2] = 90;
+          }
+        }
+      }
+      padRois.push({ x: x / W, y: y / H, w: padW / W, h: padH / H });
+    }
+  }
+  return { img, padRois };
+}
 
 async function main() {
   const seeds = seedCases();
@@ -69,6 +130,52 @@ async function main() {
   const qb = qualityScore(badAnalysis);
   console.log(`Quality (bad frame): ${qb.overall}/100`);
   if (qb.overall > 55) throw new Error('Bad frame should score low');
+
+  // ---- Board (SPI) classical CV tests ----
+  console.log('\n=== SPI BOARD ANALYSIS ===');
+
+  // Good board: full paste on all pads
+  const goodBoard = buildBoard({
+    cols: 4, rows: 3, padW: 60, padH: 22, gapX: 14, gapY: 14, margin: 12,
+    paste: () => 0.9,
+  });
+  const goodAnalysis = analyzeBoard(goodBoard.img as any, goodBoard.padRois);
+  console.log(`Good board: pads=${goodAnalysis.pads.length}, good=${goodAnalysis.defectCounts.good}, quality=${goodAnalysis.boardQuality}`);
+  if (goodAnalysis.boardQuality < 90) throw new Error('Good board should score high');
+
+  // Less-paste board: half the pads at low fill
+  const lessBoard = buildBoard({
+    cols: 4, rows: 3, padW: 60, padH: 22, gapX: 14, gapY: 14, margin: 12,
+    paste: (r, c) => (c === 0 ? 0.2 : 0.9),
+  });
+  const lessAnalysis = analyzeBoard(lessBoard.img as any, lessBoard.padRois);
+  console.log(`Less-paste board: less=${lessAnalysis.defectCounts['less-paste']}, quality=${lessAnalysis.boardQuality}`);
+  if (lessAnalysis.defectCounts['less-paste'] === 0) throw new Error('Should detect less-paste pads');
+
+  // Missing board: one pad with no paste
+  const missingBoard = buildBoard({
+    cols: 4, rows: 3, padW: 60, padH: 22, gapX: 14, gapY: 14, margin: 12,
+    paste: (r, c) => (c === 1 ? 0 : 0.9),
+  });
+  const missingAnalysis = analyzeBoard(missingBoard.img as any, missingBoard.padRois);
+  console.log(`Missing board: missing=${missingAnalysis.defectCounts.missing}, quality=${missingAnalysis.boardQuality}`);
+  if (missingAnalysis.defectCounts.missing === 0) throw new Error('Should detect missing pads');
+
+  // Bridging board
+  const bridgeBoard = buildBoard({
+    cols: 4, rows: 3, padW: 60, padH: 22, gapX: 14, gapY: 14, margin: 12,
+    paste: () => 0.9,
+    bridgeCol: 0,
+  });
+  const bridgeAnalysis = analyzeBoard(bridgeBoard.img as any, bridgeBoard.padRois);
+  console.log(`Bridging board: bridging=${bridgeAnalysis.defectCounts.bridging}, quality=${bridgeAnalysis.boardQuality}`);
+
+  // Board quality score + symptom mapping
+  const bq = boardQualityScore(goodAnalysis);
+  console.log(`Board quality breakdown: ${bq.overall}/100`);
+  const syms = boardClassToSymptoms('less-paste');
+  console.log(`boardClassToSymptoms(less-paste) -> ${syms.join(', ')}`);
+  console.log(`boardClassFromName('bad_bridge') -> ${boardClassFromName('bad_bridge')}`);
 }
 
 main().catch((e) => {

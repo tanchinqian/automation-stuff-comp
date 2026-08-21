@@ -1,4 +1,4 @@
-import type { DetectedClass, ImageAnalysis } from './analyzeImage';
+import type { BoardAnalysis, DetectedClass, ImageAnalysis } from './analyzeImage';
 
 export interface QualityBreakdown {
   shape: number; // 0-5
@@ -76,4 +76,58 @@ export function classToSymptoms(cls: DetectedClass): string[] {
     default:
       return [];
   }
+}
+
+/** Map an SPI board defect class to the diagnosis engine's symptom IDs. */
+export function boardClassToSymptoms(cls: BoardAnalysis['dominantDefect']): string[] {
+  switch (cls) {
+    case 'less-paste':
+      return ['amount-too-small', 'inconsistent-size'];
+    case 'missing':
+      return ['missing-occasionally', 'missing-location'];
+    case 'bridging':
+      return ['spread-beyond', 'shape-irregular'];
+    case 'misalignment':
+      return ['height-distance', 'inconsistent-size'];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Board quality score (Bonus Challenge 2, board variant). Derives the same
+ * /100 + star model from per-pad metrics instead of dot metrics.
+ */
+export function boardQualityScore(b: BoardAnalysis): QualityBreakdown {
+  const total = Math.max(1, b.pads.length);
+  const goodRatio = b.defectCounts.good / total;
+
+  // Shape: average fill ratio tells paste coverage health.
+  const meanFill = b.pads.length ? b.pads.reduce((a, p) => a + p.fillRatio, 0) / b.pads.length : 0;
+  const shape = Math.max(0, Math.min(1, meanFill * 1.4));
+
+  // Size/volume consistency: penalise missing + less-paste pads.
+  const volumeDefects = (b.defectCounts.missing + b.defectCounts['less-paste']) / total;
+  const size = Math.max(0, 1 - volumeDefects * 1.5);
+
+  // Position: penalise misalignment.
+  const alignDefects = b.defectCounts.misalignment / total;
+  const position = Math.max(0, 1 - alignDefects * 1.6);
+
+  // Defect risk: good pads ratio.
+  const defectRisk = goodRatio;
+
+  const weights = { shape: 0.2, size: 0.3, position: 0.2, defectRisk: 0.3 };
+  const overall = Math.round(
+    (shape * weights.shape + size * weights.size + position * weights.position + defectRisk * weights.defectRisk) * 100,
+  );
+
+  return {
+    shape: star(shape),
+    size: star(size),
+    position: star(position),
+    defectRisk: star(defectRisk),
+    overall,
+    stars: { shape: star(shape), size: star(size), position: star(position), defectRisk: star(defectRisk) },
+  };
 }

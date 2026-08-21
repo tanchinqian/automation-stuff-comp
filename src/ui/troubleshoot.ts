@@ -8,7 +8,7 @@ import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
 import { saveCase, getAllCases, priorOverrides } from '../db/caseDB';
 import { renderReportTab } from './report';
 import { createInspectionPanel, type VisionResult } from './vision';
-import { classToSymptoms } from '../vision/qualityScore';
+import { boardClassToSymptoms } from '../vision/qualityScore';
 
 interface PendingQuestion {
   def: QuestionDef;
@@ -188,18 +188,19 @@ export function renderTroubleshoot(host: HTMLElement): void {
   };
 
   const feedVision = (r: VisionResult) => {
-    const syms = classToSymptoms(r.analysis.dominantClass) as SymptomId[];
+    if (!r.board) return;
+    const syms = boardClassToSymptoms(r.board.dominantDefect) as SymptomId[];
     addSymptoms(syms);
     appState.lastImage = {
       label: r.label,
-      analysis: r.analysis,
+      board: r.board,
       quality: r.quality,
       imageUrl: r.imageUrl,
     };
     const names = syms.map((s) => s.replace(/-/g, ' '));
-    userSay(`[Image] analyzed: ${r.analysis.dominantClass.toUpperCase()}`);
+    userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
     aiSay(
-      `Image findings accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality.overall}/100</b>. Running diagnosis with the combined evidence.`,
+      `Board findings accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality?.overall ?? '--'}/100</b>. Running diagnosis with the combined evidence.`,
       true,
     );
     diagnose();
@@ -207,7 +208,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
-    aiSay('Welcome to <b>DISPENSE.AI</b> - the AI Dispensing Defect Detective.');
+    aiSay('Welcome to DISPENSE.AI - the AI Dispensing Defect Detective.');
     aiSay('I will ask up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words, or run an image inspection on the left and feed it into the diagnosis.');
     nextQuestion();
   }, 150);
