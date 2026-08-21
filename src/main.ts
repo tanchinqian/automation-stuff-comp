@@ -46,17 +46,9 @@ topbar.appendChild(nav);
 
 topbar.appendChild(el('div', 'spacer'));
 
-const offlineChip = el('div', 'status-chip online');
-offlineChip.appendChild(el('span', 'led'));
-offlineChip.appendChild(el('span', 'mono', '100% ON-DEVICE'));
-offlineChip.title = 'No cloud services required. All analysis, diagnosis, learning and reporting run in this browser.';
-topbar.appendChild(offlineChip);
 
-const engineChip = el('div', 'status-chip');
-engineChip.appendChild(el('span', 'led'));
-engineChip.appendChild(el('span', 'mono', 'ENGINE: DETECTING…'));
-engineChip.id = 'engine-chip';
-topbar.appendChild(engineChip);
+
+
 
 app.appendChild(topbar);
 
@@ -80,9 +72,7 @@ renderReportTab(document.getElementById('tab-report')!);
 
 // Footer
 const footer = el('div', 'footer');
-footer.appendChild(el('span', '', 'NSW AUTOMATION · AI Horizon Solution Challenge 2026'));
-footer.appendChild(el('span', '', 'Self-contained diagnostic engine + classical CV + on-device NLU (Gemini Nano → on-device model → embedded rules)'));
-footer.appendChild(el('span', '', 'ESP32-CAM live-stream wiring: placeholder - see src/live/esp32.ts'));
+
 app.appendChild(footer);
 
 // Boot NLU detection for the status chip
