@@ -96,9 +96,9 @@ function parseVOC(xml) {
 function mapClass(name) {
   const n = (name || '').toLowerCase();
   if (n.includes('good') || n.includes('ok') || n.includes('normal')) return 'good';
-  if (n.includes('less') || n.includes('under') || n.includes('insufficient') || n.includes('tin') || n.includes('slope')) return 'less-paste';
+  if (n.includes('less') || n.includes('under') || n.includes('insufficient') || n.includes('tin') || n.includes('slope') || n.includes('podu') || n.includes('坡')) return 'less-paste';
   if (n.includes('miss') || n.includes('empty') || n.includes('hole')) return 'missing';
-  if (n.includes('bridge') || n.includes('short') || n.includes('extra')) return 'bridging';
+  if (n.includes('bridge') || n.includes('qiaojiao') || n.includes('short') || n.includes('extra') || n.includes('桥')) return 'bridging';
   if (n.includes('align') || n.includes('offset')) return 'misalignment';
   return 'unknown';
 }
@@ -126,13 +126,17 @@ function collectAll(pairs) {
         defects = parsed.defects;
         cls = defects.length ? mapClass(defects[0].class) : 'good';
       }
+      // PCB-AoI annotations give defect bounding boxes, not pad regions. Use
+      // those bboxes as the inspection ROIs so the classical CV analyzes the
+      // annotated defect regions instead of noise.
+      const inspectRois = rois.length ? rois : defects.map((d) => d.rect);
       boards.push({
         id: `${datasetId}-${id}`,
         file: `${datasetId}-${id}.jpeg`,
         srcJpeg: join(jpeg, f),
         label: id,
         class: cls,
-        padRois: rois.length ? rois : undefined,
+        padRois: inspectRois.length ? inspectRois : undefined,
         defects: defects.map((d) => ({ class: mapClass(d.class), rect: d.rect })),
       });
     }
@@ -148,9 +152,9 @@ function selectBalanced(boards, limit) {
     if (!byClass.has(b.class)) byClass.set(b.class, []);
     byClass.get(b.class).push(b);
   }
-  // Interleave across classes so the gallery shows variety (no repeats of one class).
+  const classArr = Array.from(byClass.values());
+  const iters = classArr.map((arr) => arr[Symbol.iterator]());
   const result = [];
-  const iters = byClass.values().map((arr) => arr[Symbol.iterator]());
   while (result.length < limit) {
     let added = false;
     for (const it of iters) {
