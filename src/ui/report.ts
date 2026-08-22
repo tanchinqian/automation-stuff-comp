@@ -2,6 +2,7 @@ import { appState } from './state';
 import { clear, el, panel, button, emptyState } from './dom';
 import { generatePdf } from '../report/pdfReport';
 import { getAllCases, computePriorStats } from '../db/caseDB';
+import { switchTab } from './troubleshoot';
 
 export function renderReportTab(host: HTMLElement): void {
   clear(host);
@@ -33,7 +34,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
   fmt('Problem', d.material ? `Dispensing defect reported with ${d.material}` : 'Dispensing defect reported');
   fmt('Identified defect', `${d.defect.defectName} (${(d.defect.defectConfidence * 100).toFixed(0)}%)`);
   fmt('Top possible cause', d.defect.causes[0]?.name ?? '-');
-  fmt('Confidence', `${(d.defect.causes[0]?.score ?? 0) * 100}%`);
+  fmt('Confidence', `${((d.defect.causes[0]?.score ?? 0) * 100).toFixed(0)}%`);
   if (d.qualityScore !== undefined) fmt('Quality score', `${d.qualityScore}/100`);
   fmt('Recommended checks', `${appState.lastActions?.length ?? 0} sequential steps`);
 
@@ -53,7 +54,7 @@ const p = panel('Troubleshooting Report', 'generated entirely on-device');
     });
   });
   const backBtn = button('BACK TO DIAGNOSIS', 'btn ghost', () => {
-    document.getElementById('tab-troubleshoot')?.scrollIntoView();
+    switchTab('troubleshoot');
   });
   row.appendChild(genBtn);
   row.appendChild(backBtn);
