@@ -48,7 +48,7 @@ body {
     var(--bg-0);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   overflow-x: hidden;
 }
@@ -254,8 +254,8 @@ label,
   display: grid;
   grid-template-columns: 1fr;
   gap: 18px;
-  padding: 20px 24px;
-  max-width: 1380px;
+  padding: 20px 12px;
+  max-width: 1600px;
   width: 100%;
   margin: 0 auto;
 }
