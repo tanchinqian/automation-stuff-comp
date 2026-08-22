@@ -8,6 +8,7 @@ type LiveSource = 'sim' | 'webcam' | 'esp32';
 let running = false;
 let rafId = 0;
 let stream: MediaStream | null = null;
+let videoEl: HTMLVideoElement | null = null;
 let simTick: (() => { canvas: HTMLCanvasElement; canvasToImageData: () => ImageData }) | null = null;
 
 const ESP32_PLACEHOLDER = 'http://192.168.4.1/stream';
@@ -90,6 +91,10 @@ export function renderLive(host: HTMLElement): void {
       stream.getTracks().forEach((t) => t.stop());
       stream = null;
     }
+    if (videoEl) {
+      videoEl.remove();
+      videoEl = null;
+    }
     simTick = null;
     liveCanvas.getContext('2d')!.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     statusLine.textContent = 'Status: idle';
@@ -126,9 +131,8 @@ export function renderLive(host: HTMLElement): void {
       processFrame(f.canvasToImageData());
     } else if (stream) {
       const ctx = liveCanvas.getContext('2d')!;
-      const v = document.querySelector('video') as HTMLVideoElement | null;
-      if (v && v.readyState >= 2) {
-        ctx.drawImage(v, 0, 0, liveCanvas.width, liveCanvas.height);
+      if (videoEl && videoEl.readyState >= 2) {
+        ctx.drawImage(videoEl, 0, 0, liveCanvas.width, liveCanvas.height);
         processFrame(ctx.getImageData(0, 0, liveCanvas.width, liveCanvas.height));
       }
     }
@@ -148,18 +152,22 @@ export function renderLive(host: HTMLElement): void {
     stopAll();
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-      const v = el('video', '') as HTMLVideoElement;
-      v.srcObject = stream;
-      v.autoplay = true;
-      v.muted = true;
-      v.style.display = 'none';
-      document.body.appendChild(v);
+      videoEl = el('video', '') as HTMLVideoElement;
+      videoEl.srcObject = stream;
+      videoEl.autoplay = true;
+      videoEl.muted = true;
+      videoEl.style.display = 'none';
+      document.body.appendChild(videoEl);
       running = true;
-      statusLine.textContent = 'Status: webcam live - analysis running on every frame';
+      statusLine.textContent = 'Status: webcam live — analysis running on every frame';
       frames = 0;
       loop();
     } catch (e) {
-      statusLine.textContent = `Status: webcam unavailable (${(e as Error).message})`;
+      const err = e as Error;
+      const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+      statusLine.innerHTML = isDenied
+        ? '<b style="color:var(--danger)">⚠ Camera access denied.</b> Please allow camera access in your browser settings and try again.'
+        : `<b style="color:var(--warn)">⚠ Webcam unavailable.</b> ${err.message}`;
     }
   };
 
@@ -172,4 +180,13 @@ export function renderLive(host: HTMLElement): void {
   btnWebcam.onclick = startWebcam;
   btnStop.onclick = stopAll;
   btnEsp.onclick = startEsp32;
+
+  // Stop the RAF loop automatically when the user navigates away from this tab
+  const pane = host.closest('.tab-pane') ?? host;
+  const tabObserver = new MutationObserver(() => {
+    if ((pane as HTMLElement).classList.contains('hidden') && running) {
+      stopAll();
+    }
+  });
+  tabObserver.observe(pane, { attributes: true, attributeFilter: ['class'] });
 }
