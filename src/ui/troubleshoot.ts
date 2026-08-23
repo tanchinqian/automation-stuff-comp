@@ -1,7 +1,7 @@
 import { BASE_QUESTIONS, FOLLOW_UPS, FOLLOW_UP_RULES, MATERIALS } from '../engine/knowledgeBase';
 import { runDiagnosis } from '../engine/scorer';
 import { buildActionPlan } from '../engine/actions';
-import type { QuestionDef, SymptomId } from '../engine/types';
+import type { MaterialType, QuestionDef, SymptomId } from '../engine/types';
 import { appState, addSymptoms, resetState } from './state';
 import { el, clear, button, panel, stars } from './dom';
 import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
@@ -15,7 +15,18 @@ interface PendingQuestion {
   next: string | null;
 }
 
+type Phase = 'welcome' | 'intake' | 'awaiting-image' | 'diagnosed';
+
 const llm = new LlmRouter();
+
+/** Which base questions are already answered by the current evidence. */
+const ANSWERED_BY_SYMPTOMS: Partial<Record<string, SymptomId[]>> = {
+  'q-material': [],
+  'q-amount': ['amount-too-small', 'amount-too-large', 'inconsistent-size', 'missing-occasionally', 'missing-location', 'spread-beyond', 'shape-irregular'],
+  'q-occurrence': ['occurrence-continuous', 'occurrence-occasional', 'occurrence-once'],
+  'q-recent-change': ['recent-change-material', 'recent-change-nozzle', 'recent-change-parameter'],
+  'q-location': ['single-location', 'multi-location'],
+};
 
 export function renderTroubleshoot(host: HTMLElement): void {
   clear(host);
@@ -33,7 +44,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const vision = createInspectionPanel({
     onAnalyze: () => {
-      aiSay('Frame analyzed - quality score and defect flags updated on the left.');
+      aiSay('Frame analyzed - click <b>FEED TO DIAGNOSIS</b> on the left to use it as evidence.', true);
+      updateEvidence();
     },
     onFeed: (r: VisionResult) => {
       feedVision(r);
@@ -45,6 +57,10 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const chatPanel = panel('AI Assistant', 'intake + free-text NLU');
   chatPanel.classList.add('chat-sticky');
   const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
+
+  const evidenceStrip = el('div', 'evidence-strip');
+  chatBody.appendChild(evidenceStrip);
+
   const chatLog = el('div', 'chat-log');
   chatLog.setAttribute('aria-live', 'polite');
   const inputRow = el('div', 'freetext-row');
@@ -62,11 +78,16 @@ export function renderTroubleshoot(host: HTMLElement): void {
   chatBody.appendChild(nluNote);
   layout.appendChild(chatPanel);
 
-  // ---- Chat wiring ----
+  // ---- Conversation state ----
+  let phase: Phase = 'welcome';
   const queue: PendingQuestion[] = [];
   let followUpsAsked = 0;
-  let asked = 0;
-  let intakeDone = false;
+
+  const isAnswered = (qid: string): boolean => {
+    if (qid === 'q-material') return !!appState.material;
+    const syms = ANSWERED_BY_SYMPTOMS[qid] ?? [];
+    return syms.some((s) => appState.symptoms.has(s));
+  };
 
   const aiSay = (text: string, html = false) => {
     const m = el('div', 'msg ai');
@@ -86,6 +107,56 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.scrollTop = chatLog.scrollHeight;
   };
 
+  // ---- Live evidence summary ----
+  const updateEvidence = () => {
+    clear(evidenceStrip);
+    evidenceStrip.appendChild(el('span', 'elabel', 'Evidence'));
+    const mat = el('span', appState.material ? 'evidence-chip ok' : 'evidence-chip warn');
+    mat.appendChild(el('span', 'mark', appState.material ? '✓' : '✗'));
+    mat.appendChild(el('span', '', 'material'));
+    if (appState.material) mat.appendChild(el('span', '', ` ${MATERIALS[appState.material]}`));
+    evidenceStrip.appendChild(mat);
+
+    const syms = el('span', appState.symptoms.size ? 'evidence-chip ok' : 'evidence-chip warn');
+    syms.appendChild(el('span', 'mark', appState.symptoms.size ? '✓' : '✗'));
+    syms.appendChild(el('span', '', `symptoms (${appState.symptoms.size})`));
+    evidenceStrip.appendChild(syms);
+
+    const img = el('span', appState.lastImage ? 'evidence-chip ok' : 'evidence-chip warn');
+    img.appendChild(el('span', 'mark', appState.lastImage ? '✓' : '✗'));
+    img.appendChild(el('span', '', 'image'));
+    evidenceStrip.appendChild(img);
+  };
+  updateEvidence();
+
+  // ---- Image gate (block until image or skip) ----
+  const showImageGate = () => {
+    phase = 'awaiting-image';
+    const m = el('div', 'msg ai');
+    m.appendChild(el('div', 'avatar', 'AI'));
+    const b = el('div', 'bubble');
+    const gate = el('div', 'gate-notice');
+    gate.appendChild(el('div', 'g-label', 'Action needed'));
+    gate.appendChild(
+      el('p', '', 'You have described the problem, but no inspection image yet. An image sharpens the diagnosis. Pick a board on the left, click ANALYZE BOARD, then FEED TO DIAGNOSIS. Or continue with text only.'),
+    );
+    const row = el('div', 'freetext-row');
+    row.style.marginTop = '8px';
+    row.appendChild(button('SKIP IMAGE', 'btn sm', () => {
+      appState.imageSkipped = true;
+      userSay('Skip image - continue with text evidence');
+      row.remove();
+      aiSay('No problem - running the diagnosis with the text evidence you provided.');
+      diagnose();
+    }));
+    gate.appendChild(row);
+    b.appendChild(gate);
+    m.appendChild(b);
+    chatLog.appendChild(m);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  };
+
+  // ---- Adaptive intake ----
   const askQuestion = (q: QuestionDef) => {
     const block = el('div', 'question-block');
     block.appendChild(el('div', 'question-label', `QUESTION ${queue.length + 1}`));
@@ -99,7 +170,11 @@ export function renderTroubleshoot(host: HTMLElement): void {
         chip.onclick = () => {
           userSay(opt.label);
           block.remove();
+          // material question sets material from the option id
+          if (q.id === 'q-material') appState.material = opt.id as MaterialType;
           addSymptoms(opt.adds);
+          updateEvidence();
+          aiSay(acknowledge(opt.label));
           const follow = FOLLOW_UP_RULES.find((f) => f.questionId === q.id && f.answerId === opt.id);
           if (follow && followUpsAsked < 5) {
             const fu = FOLLOW_UPS.find((f) => f.id === follow.nextQuestionId);
@@ -121,17 +196,21 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.scrollTop = chatLog.scrollHeight;
   };
 
+  const acknowledge = (label: string): string => {
+    return `Got it - "${label}". I have noted that.`;
+  };
+
   const nextQuestion = () => {
     if (queue.length > 0) {
       const pq = queue.shift()!;
       askQuestion(pq.def);
       return;
     }
-    if (asked < BASE_QUESTIONS.length) {
-      const q = BASE_QUESTIONS[asked];
-      asked++;
-      aiSay(q.text);
-      askQuestion(q);
+    // pick the next unanswered base question
+    const next = BASE_QUESTIONS.find((q) => !isAnswered(q.id));
+    if (next) {
+      aiSay(next.text);
+      askQuestion(next);
       return;
     }
     finishIntake();
@@ -149,8 +228,14 @@ export function renderTroubleshoot(host: HTMLElement): void {
       addSymptoms(fallback.symptoms as SymptomId[]);
       nluNote.innerHTML += ' · fallback rules applied';
     }
-    aiSay(`Understood - updating the symptom profile.${appState.material ? ` Material: ${MATERIALS[appState.material]}.` : ''}`);
-    finishIntake(true);
+    updateEvidence();
+    aiSay(`Understood - ${parsed.summary}`, parsed.engine !== 'heuristic');
+    // continue asking remaining relevant questions, or finish if all answered
+    if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
+      finishIntake();
+    } else {
+      nextQuestion();
+    }
   };
 
   sendBtn.onclick = () => {
@@ -163,12 +248,16 @@ export function renderTroubleshoot(host: HTMLElement): void {
     if (e.key === 'Enter') sendBtn.click();
   });
 
-  const finishIntake = (force = false) => {
-    if (!force && asked < BASE_QUESTIONS.length) return;
-    if (intakeDone) return;
-    intakeDone = true;
-    aiSay('Analyzing your answers against the dispensing knowledge base…');
-    diagnose();
+  const finishIntake = () => {
+    if (phase === 'diagnosed') return;
+    phase = 'intake';
+    updateEvidence();
+    if (appState.lastImage || appState.imageSkipped) {
+      aiSay('Analyzing your answers against the dispensing knowledge base…');
+      diagnose();
+    } else {
+      showImageGate();
+    }
   };
 
   const diagnose = async () => {
@@ -181,6 +270,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
       report.qualityScore = appState.lastImage.quality.overall;
     }
     renderDiagnosis(diagBody, report, appState.lastActions);
+    phase = 'diagnosed';
+    updateEvidence();
     aiSay(
       `Diagnosis complete. Identified <b>${report.defect.defectName}</b> with ${(report.defect.defectConfidence * 100).toFixed(0)}% confidence. <br><span style="color:var(--ink-dim)">${report.defect.reasoning}</span>`,
       true,
@@ -197,19 +288,28 @@ export function renderTroubleshoot(host: HTMLElement): void {
       quality: r.quality,
       imageUrl: r.imageUrl,
     };
+    updateEvidence();
     const names = syms.map((s) => s.replace(/-/g, ' '));
     userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
-    aiSay(
-      `Board findings accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Quality score <b>${r.quality?.overall ?? '--'}/100</b>. Running diagnosis with the combined evidence.`,
-      true,
-    );
-    diagnose();
+    if (phase === 'diagnosed') {
+      aiSay(`New image evidence accepted - re-running diagnosis with updated findings. Flagged symptoms: <b>${names.join(', ') || 'none'}</b>.`, true);
+      diagnose();
+    } else if (phase === 'awaiting-image') {
+      aiSay(`Image evidence accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Running diagnosis with the combined evidence.`, true);
+      diagnose();
+    } else {
+      aiSay(`Image evidence accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>.`, true);
+      if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
+        finishIntake();
+      }
+    }
   };
 
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
     aiSay('Welcome to DISPENSE.AI - the AI Dispensing Defect Detective.');
-    aiSay('I will ask up to five smart questions to pinpoint the dispensing problem. You can also describe the issue in your own words, or run an image inspection on the left and feed it into the diagnosis.');
+    aiSay('I will ask a few smart questions to pinpoint the problem. You can also describe the issue in your own words, and an inspection image on the left sharpens the diagnosis.');
+    phase = 'intake';
     nextQuestion();
   }, 150);
 
