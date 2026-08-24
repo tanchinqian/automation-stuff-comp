@@ -7,6 +7,8 @@ import type { MaterialType, SymptomId } from '../engine/types';
 export interface AppState {
   material?: MaterialType;
   symptoms: Set<SymptomId>;
+  /** symptoms the operator stressed (carry extra scoring weight) */
+  emphasized?: Set<SymptomId>;
   lastDiagnosis?: DiagnosticReport;
   lastActions?: ActionStep[];
   lastImage?: { label: string; board?: BoardAnalysis; quality?: QualityBreakdown; imageUrl: string };
@@ -28,6 +30,7 @@ export function addSymptoms(syms: SymptomId[]): void {
 export function resetState(): void {
   appState.material = undefined;
   appState.symptoms.clear();
+  appState.emphasized = undefined;
   appState.lastDiagnosis = undefined;
   appState.lastActions = undefined;
   appState.lastImage = undefined;

@@ -4,11 +4,12 @@ import { buildActionPlan } from '../engine/actions';
 import type { MaterialType, QuestionDef, SymptomId } from '../engine/types';
 import { appState, addSymptoms, resetState } from './state';
 import { el, clear, button, panel, stars } from './dom';
-import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
+import { LlmRouter, HeuristicNlu, type ChatContext } from '../nlu/llmRouter';
 import { saveCase, getAllCases, priorOverrides } from '../db/caseDB';
 import { renderReportTab } from './report';
 import { createInspectionPanel, type VisionResult } from './vision';
 import { boardClassToSymptoms } from '../vision/qualityScore';
+import { template, acknowledgeTemplate, imageCrossTemplate } from './templates';
 
 interface PendingQuestion {
   def: QuestionDef;
@@ -107,6 +108,21 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.scrollTop = chatLog.scrollHeight;
   };
 
+  // ---- Natural-language replies: LLM when available, template fallback ----
+  const aiRespond = async (ctx: ChatContext, fallback: string) => {
+    const thinking = el('div', 'msg ai');
+    thinking.appendChild(el('div', 'avatar', 'AI'));
+    thinking.appendChild(el('div', 'bubble loading', '…'));
+    chatLog.appendChild(thinking);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    const text = await Promise.race([
+      llm.respond(ctx),
+      new Promise<string | null>((res) => setTimeout(() => res(null), 4000)),
+    ]);
+    thinking.remove();
+    aiSay(text ?? fallback, true);
+  };
+
   // ---- Live evidence summary ----
   const updateEvidence = () => {
     clear(evidenceStrip);
@@ -146,7 +162,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
       appState.imageSkipped = true;
       userSay('Skip image - continue with text evidence');
       row.remove();
-      aiSay('No problem - running the diagnosis with the text evidence you provided.');
+      aiRespond({ intent: 'skip-ack' }, template('skip-ack'));
       diagnose();
     }));
     gate.appendChild(row);
@@ -174,7 +190,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
           if (q.id === 'q-material') appState.material = opt.id as MaterialType;
           addSymptoms(opt.adds);
           updateEvidence();
-          aiSay(acknowledge(opt.label));
+          const labelList = opt.adds.map((s) => s.replace(/-/g, ' '));
+          aiRespond({ intent: 'acknowledge', userText: opt.label, symptoms: labelList, material: appState.material ? MATERIALS[appState.material] : undefined }, acknowledgeTemplate({ intent: 'acknowledge', symptoms: labelList }));
           const follow = FOLLOW_UP_RULES.find((f) => f.questionId === q.id && f.answerId === opt.id);
           if (follow && followUpsAsked < 5) {
             const fu = FOLLOW_UPS.find((f) => f.id === follow.nextQuestionId);
@@ -194,10 +211,6 @@ export function renderTroubleshoot(host: HTMLElement): void {
     }
     chatLog.appendChild(block);
     chatLog.scrollTop = chatLog.scrollHeight;
-  };
-
-  const acknowledge = (label: string): string => {
-    return `Got it - "${label}". I have noted that.`;
   };
 
   const nextQuestion = () => {
@@ -222,6 +235,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     let parsed = await llm.parse(text);
     if (parsed.material) appState.material = parsed.material;
     addSymptoms(parsed.symptoms as SymptomId[]);
+    if (parsed.emphasis?.length) appState.emphasized = new Set(parsed.emphasis as SymptomId[]);
     nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
     if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
       const fallback = await new HeuristicNlu().parse(text);
@@ -229,7 +243,12 @@ export function renderTroubleshoot(host: HTMLElement): void {
       nluNote.innerHTML += ' · fallback rules applied';
     }
     updateEvidence();
-    aiSay(`Understood - ${parsed.summary}`, parsed.engine !== 'heuristic');
+    const labelList = [...appState.symptoms].map((s) => s.replace(/-/g, ' '));
+    const emphasized = parsed.emphasis?.length ? parsed.emphasis.map((s) => s.replace(/-/g, ' ')) : undefined;
+    aiRespond(
+      { intent: 'acknowledge', userText: text, symptoms: labelList, emphasized, material: appState.material ? MATERIALS[appState.material] : undefined },
+      `Understood - ${parsed.summary}${emphasized?.length ? ` I will weigh ${emphasized.join(', ')} more heavily.` : ''}`,
+    );
     // continue asking remaining relevant questions, or finish if all answered
     if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
       finishIntake();
@@ -263,7 +282,12 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const diagnose = async () => {
     const cases = await getAllCases();
     const priors = priorOverrides(cases);
-    const report = runDiagnosis([...appState.symptoms], appState.material ? MATERIALS[appState.material] : '', priors);
+    const report = runDiagnosis(
+      [...appState.symptoms],
+      appState.material ? MATERIALS[appState.material] : '',
+      priors,
+      appState.emphasized ? [...appState.emphasized] : undefined,
+    );
     appState.lastDiagnosis = report;
     appState.lastActions = buildActionPlan(report.defect.causes.map((c) => c.causeId));
     if (appState.lastImage?.quality) {
@@ -272,9 +296,15 @@ export function renderTroubleshoot(host: HTMLElement): void {
     renderDiagnosis(diagBody, report, appState.lastActions);
     phase = 'diagnosed';
     updateEvidence();
-    aiSay(
+    const top = report.defect.causes[0];
+    aiRespond(
+      {
+        intent: 'diagnosis-announce',
+        symptoms: report.activeSymptoms.map((s) => s.replace(/-/g, ' ')),
+        image: appState.lastImage ? { className: appState.lastImage.board?.dominantDefect ?? 'board', quality: appState.lastImage.quality?.overall } : undefined,
+        diagnosis: { defectName: report.defect.defectName, confidence: report.defect.defectConfidence, topCause: top?.name ?? 'unknown' },
+      },
       `Diagnosis complete. Identified <b>${report.defect.defectName}</b> with ${(report.defect.defectConfidence * 100).toFixed(0)}% confidence. <br><span style="color:var(--ink-dim)">${report.defect.reasoning}</span>`,
-      true,
     );
   };
 
@@ -290,15 +320,22 @@ export function renderTroubleshoot(host: HTMLElement): void {
     };
     updateEvidence();
     const names = syms.map((s) => s.replace(/-/g, ' '));
+    const priorTextSyms = [...appState.symptoms].filter((s) => !syms.includes(s)).map((s) => s.replace(/-/g, ' '));
     userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
+    const ctx: ChatContext = {
+      intent: 'image-cross-ref',
+      symptoms: [...new Set([...priorTextSyms, ...names])],
+      image: { className: r.board.dominantDefect, quality: r.quality?.overall },
+      material: appState.material ? MATERIALS[appState.material] : undefined,
+    };
     if (phase === 'diagnosed') {
-      aiSay(`New image evidence accepted - re-running diagnosis with updated findings. Flagged symptoms: <b>${names.join(', ') || 'none'}</b>.`, true);
+      aiRespond(ctx, imageCrossTemplate(ctx));
       diagnose();
     } else if (phase === 'awaiting-image') {
-      aiSay(`Image evidence accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>. Running diagnosis with the combined evidence.`, true);
+      aiRespond(ctx, imageCrossTemplate(ctx));
       diagnose();
     } else {
-      aiSay(`Image evidence accepted - flagged symptoms: <b>${names.join(', ') || 'none'}</b>.`, true);
+      aiRespond(ctx, imageCrossTemplate(ctx));
       if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
         finishIntake();
       }
@@ -307,8 +344,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   renderDiagnosis(diagBody, undefined, undefined);
   setTimeout(() => {
-    aiSay('Welcome to DISPENSE.AI - the AI Dispensing Defect Detective.');
-    aiSay('I will ask a few smart questions to pinpoint the problem. You can also describe the issue in your own words, and an inspection image on the left sharpens the diagnosis.');
+    aiRespond({ intent: 'welcome' }, template('welcome'));
     phase = 'intake';
     nextQuestion();
   }, 150);

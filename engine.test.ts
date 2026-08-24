@@ -176,6 +176,25 @@ async function main() {
   const syms = boardClassToSymptoms('less-paste');
   console.log(`boardClassToSymptoms(less-paste) -> ${syms.join(', ')}`);
   console.log(`boardClassFromName('bad_bridge') -> ${boardClassFromName('bad_bridge')}`);
+
+  // Emphasis boost: emphasizing a symptom widens the gap for causes that DO
+  // respond to it vs causes that do not (normalization cancels uniform boosts).
+  console.log('\n=== EMPHASIS BOOST ===');
+  const baseSyms = ['inconsistent-size', 'material-voids', 'amount-too-small'];
+  const base = runDiagnosis(baseSyms, 'adhesive', priors);
+  const emph = runDiagnosis(baseSyms, 'adhesive', priors, ['material-voids']);
+  const gapBase = base.defect.causes[0].score - base.defect.causes[1].score;
+  const gapEmph = emph.defect.causes[0].score - emph.defect.causes[1].score;
+  console.log(`Top-vs-2nd gap: base=${gapBase.toFixed(3)} emphasized=${gapEmph.toFixed(3)}`);
+  if (gapEmph <= gapBase) throw new Error('Emphasizing a symptom should widen the top cause gap');
+  const mentionsEmphasis = emph.defect.causes.some((c) => c.reasons.some((r) => r.toLowerCase().includes('emphasized')));
+  if (!mentionsEmphasis) throw new Error('Reasoning should mention operator emphasis');
+  console.log('Emphasis boost + reasoning note OK');
+
+  // Heuristic sentiment/emphasis detection
+  const nlu2 = new HeuristicNlu();
+  const s = await nlu2.parse('the dots keep disappearing and it is driving me crazy');
+  console.log(`\nHeuristic sentiment: ${s.sentiment}, emphasis: ${s.emphasis?.join(', ') ?? 'none'}, symptoms: ${s.symptoms.join(', ')}`);
 }
 
 main().catch((e) => {

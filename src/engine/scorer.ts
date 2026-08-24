@@ -99,15 +99,18 @@ export function scoreCauses(
   defectId: DefectId,
   active: SymptomId[],
   priors?: Partial<Record<CauseId, number>>,
+  emphasized?: SymptomId[],
 ): ScoredCause[] {
   const defect = DEFECTS[defectId];
   const rows: ScoredCause[] = [];
 
   const rawEvidence = new Map<CauseId, number>();
   const reasonMap = new Map<CauseId, SymptomId[]>();
+  const emphasisSet = new Set(emphasized ?? []);
 
   for (const sym of active) {
-    const strength = EVIDENCE_STRENGTH[sym] ?? 0.5;
+    // Emphasized symptoms (operator stressed them) carry extra weight.
+    const strength = (EVIDENCE_STRENGTH[sym] ?? 0.5) * (emphasisSet.has(sym) ? 1.3 : 1);
     const direct = SYMPTOM_CAUSES[sym] ?? {};
     const causes = new Set<CauseId>([...Object.keys(direct), ...Object.keys(defect.causeWeights)] as CauseId[]);
     for (const causeId of causes) {
@@ -135,7 +138,11 @@ export function scoreCauses(
     const reasonSyms = reasonMap.get(causeId as CauseId) ?? [];
     const reasons =
       reasonSyms.length > 0
-        ? reasonSyms.map((s) => `'${SYMPTOMS[s].label}' points toward this cause (evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`)
+        ? reasonSyms.map((s) =>
+            emphasisSet.has(s)
+              ? `'${SYMPTOMS[s].label}' is emphasized by the operator and points toward this cause (boosted evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`
+              : `'${SYMPTOMS[s].label}' points toward this cause (evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`,
+          )
         : ['No direct symptom evidence; scored from baseline prior probability.'];
 
     rows.push({
@@ -189,10 +196,11 @@ export function runDiagnosis(
   active: SymptomId[],
   material: string,
   priors?: Partial<Record<CauseId, number>>,
+  emphasized?: SymptomId[],
 ): DiagnosticReport {
   const { defectId, confidence } = identifyDefect(active);
   const defect = DEFECTS[defectId];
-  const causes = scoreCauses(defectId, active, priors);
+  const causes = scoreCauses(defectId, active, priors, emphasized);
   const diagnosis: DiagnosisResult = {
     defectId,
     defectName: defect.name,
