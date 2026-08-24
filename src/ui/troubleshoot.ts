@@ -83,6 +83,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
   let phase: Phase = 'welcome';
   const queue: PendingQuestion[] = [];
   let followUpsAsked = 0;
+  let questionCount = 0;
 
   const isAnswered = (qid: string): boolean => {
     if (qid === 'q-material') return !!appState.material;
@@ -158,12 +159,12 @@ export function renderTroubleshoot(host: HTMLElement): void {
     );
     const row = el('div', 'freetext-row');
     row.style.marginTop = '8px';
-    row.appendChild(button('SKIP IMAGE', 'btn sm', () => {
+    row.appendChild(button('SKIP IMAGE', 'btn sm', async () => {
       appState.imageSkipped = true;
       userSay('Skip image - continue with text evidence');
       row.remove();
-      aiRespond({ intent: 'skip-ack' }, template('skip-ack'));
-      diagnose();
+      await aiRespond({ intent: 'skip-ack' }, template('skip-ack'));
+      await diagnose();
     }));
     gate.appendChild(row);
     b.appendChild(gate);
@@ -174,8 +175,9 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   // ---- Adaptive intake ----
   const askQuestion = (q: QuestionDef) => {
+    questionCount++;
     const block = el('div', 'question-block');
-    block.appendChild(el('div', 'question-label', `QUESTION ${queue.length + 1}`));
+    block.appendChild(el('div', 'question-label', `QUESTION ${questionCount}`));
     block.appendChild(el('div', 'question-text', q.text));
 
     if (q.intent === 'single' && q.options) {
@@ -183,7 +185,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
       for (const opt of q.options) {
         const chip = el('button', 'opt', opt.label) as HTMLButtonElement;
         chip.type = 'button';
-        chip.onclick = () => {
+        chip.onclick = async () => {
           userSay(opt.label);
           block.remove();
           // material question sets material from the option id
@@ -191,7 +193,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
           addSymptoms(opt.adds);
           updateEvidence();
           const labelList = opt.adds.map((s) => s.replace(/-/g, ' '));
-          aiRespond({ intent: 'acknowledge', userText: opt.label, symptoms: labelList, material: appState.material ? MATERIALS[appState.material] : undefined }, acknowledgeTemplate({ intent: 'acknowledge', symptoms: labelList }));
+          await aiRespond({ intent: 'acknowledge', userText: opt.label, symptoms: labelList, material: appState.material ? MATERIALS[appState.material] : undefined }, acknowledgeTemplate({ intent: 'acknowledge', symptoms: labelList }));
           const follow = FOLLOW_UP_RULES.find((f) => f.questionId === q.id && f.answerId === opt.id);
           if (follow && followUpsAsked < 5) {
             const fu = FOLLOW_UPS.find((f) => f.id === follow.nextQuestionId);
@@ -245,7 +247,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     updateEvidence();
     const labelList = [...appState.symptoms].map((s) => s.replace(/-/g, ' '));
     const emphasized = parsed.emphasis?.length ? parsed.emphasis.map((s) => s.replace(/-/g, ' ')) : undefined;
-    aiRespond(
+    await aiRespond(
       { intent: 'acknowledge', userText: text, symptoms: labelList, emphasized, material: appState.material ? MATERIALS[appState.material] : undefined },
       `Understood - ${parsed.summary}${emphasized?.length ? ` I will weigh ${emphasized.join(', ')} more heavily.` : ''}`,
     );
@@ -267,13 +269,13 @@ export function renderTroubleshoot(host: HTMLElement): void {
     if (e.key === 'Enter') sendBtn.click();
   });
 
-  const finishIntake = () => {
+  const finishIntake = async () => {
     if (phase === 'diagnosed') return;
     phase = 'intake';
     updateEvidence();
     if (appState.lastImage || appState.imageSkipped) {
       aiSay('Analyzing your answers against the dispensing knowledge base…');
-      diagnose();
+      await diagnose();
     } else {
       showImageGate();
     }
@@ -297,7 +299,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     phase = 'diagnosed';
     updateEvidence();
     const top = report.defect.causes[0];
-    aiRespond(
+    await aiRespond(
       {
         intent: 'diagnosis-announce',
         symptoms: report.activeSymptoms.map((s) => s.replace(/-/g, ' ')),
@@ -308,7 +310,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     );
   };
 
-  const feedVision = (r: VisionResult) => {
+  const feedVision = async (r: VisionResult) => {
     if (!r.board) return;
     const syms = boardClassToSymptoms(r.board.dominantDefect) as SymptomId[];
     addSymptoms(syms);
@@ -329,13 +331,13 @@ export function renderTroubleshoot(host: HTMLElement): void {
       material: appState.material ? MATERIALS[appState.material] : undefined,
     };
     if (phase === 'diagnosed') {
-      aiRespond(ctx, imageCrossTemplate(ctx));
-      diagnose();
+      await aiRespond(ctx, imageCrossTemplate(ctx));
+      await diagnose();
     } else if (phase === 'awaiting-image') {
-      aiRespond(ctx, imageCrossTemplate(ctx));
-      diagnose();
+      await aiRespond(ctx, imageCrossTemplate(ctx));
+      await diagnose();
     } else {
-      aiRespond(ctx, imageCrossTemplate(ctx));
+      await aiRespond(ctx, imageCrossTemplate(ctx));
       if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
         finishIntake();
       }
@@ -343,8 +345,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
   };
 
   renderDiagnosis(diagBody, undefined, undefined);
-  setTimeout(() => {
-    aiRespond({ intent: 'welcome' }, template('welcome'));
+  setTimeout(async () => {
+    await aiRespond({ intent: 'welcome' }, template('welcome'));
     phase = 'intake';
     nextQuestion();
   }, 150);
