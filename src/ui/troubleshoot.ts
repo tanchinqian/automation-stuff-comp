@@ -3,7 +3,7 @@ import { runDiagnosis } from '../engine/scorer';
 import { buildActionPlan } from '../engine/actions';
 import type { MaterialType, QuestionDef, SymptomId } from '../engine/types';
 import { appState, addSymptoms, resetState } from './state';
-import { el, clear, button, panel, stars } from './dom';
+import { el, clear, button, panel } from './dom';
 import { LlmRouter, HeuristicNlu, type ChatContext } from '../nlu/llmRouter';
 import { saveCase, getAllCases, priorOverrides } from '../db/caseDB';
 import { renderReportTab } from './report';
@@ -298,6 +298,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     renderDiagnosis(diagBody, report, appState.lastActions);
     phase = 'diagnosed';
     updateEvidence();
+    renderReportTab(document.getElementById('tab-report') as HTMLElement);
     const top = report.defect.causes[0];
     await aiRespond(
       {
@@ -437,31 +438,6 @@ export function renderDiagnosis(
     actionList.appendChild(step);
   }
   body.appendChild(actionList);
-
-  if (appState.lastImage?.quality) {
-    const qLabel = el('div', 'question-label');
-    qLabel.style.marginTop = '16px';
-    qLabel.textContent = 'Dispensing quality score (image-derived)';
-    body.appendChild(qLabel);
-    const q = appState.lastImage.quality;
-    const qh = el('div', 'q-hero');
-    qh.appendChild(el('div', 'score', `${q.overall}`));
-    qh.appendChild(el('div', 'score-label', 'out of 100'));
-    body.appendChild(qh);
-    const grid = el('div', 'q-grid');
-    const card = (label: string, val: number) => {
-      const c = el('div', 'q-card');
-      c.appendChild(el('div', 'qlabel', label));
-      c.appendChild(el('div', 'stars', stars(val)));
-      c.appendChild(el('div', 'qval', `${val} / 5`));
-      grid.appendChild(c);
-    };
-    card('Shape consistency', q.shape);
-    card('Size consistency', q.size);
-    card('Position', q.position);
-    card('Defect risk', q.defectRisk);
-    body.appendChild(grid);
-  }
 
   const fb = el('div', 'feedback');
   fb.appendChild(el('div', 'flabel', 'Engineer feedback - what actually fixed it? (feeds the learning database)'));
