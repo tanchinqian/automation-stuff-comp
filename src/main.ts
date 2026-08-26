@@ -39,7 +39,11 @@ for (const t of TABS) {
   tab.setAttribute('role', 'tab');
   tab.setAttribute('aria-selected', t.id === 'troubleshoot' ? 'true' : 'false');
   tab.setAttribute('aria-controls', `tab-${t.id}`);
-  tab.onclick = () => switchTab(t.id);
+  tab.onclick = () => {
+    switchTab(t.id);
+    if (t.id === 'database') renderDatabase(document.getElementById('tab-database')!);
+    if (t.id === 'report') renderReportTab(document.getElementById('tab-report')!);
+  };
   nav.appendChild(tab);
 }
 topbar.appendChild(nav);
@@ -68,7 +72,6 @@ app.appendChild(panes);
 renderTroubleshoot(document.getElementById('tab-troubleshoot')!);
 renderLive(document.getElementById('tab-live')!);
 renderDatabase(document.getElementById('tab-database')!);
-renderReportTab(document.getElementById('tab-report')!);
 
 // Footer
 const footer = el('div', 'footer');
