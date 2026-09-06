@@ -8,6 +8,7 @@ export interface ReportData {
   actions: ActionStep[];
   quality?: QualityBreakdown;
   imageLabel?: string;
+  imageUrl?: string;
   engineerNotes?: string;
   engineLabel: string;
 }
@@ -104,13 +105,44 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   y += 15;
   para(data.diagnosis.defect.defectDescription);
 
-  // 3. AI Analysis
-  section('3. AI Analysis');
+  const hasImage = !!data.imageUrl;
+  let next = 3;
+
+  // 3. Image Inspection (optional)
+  if (hasImage) {
+    section('3. Image Inspection');
+    try {
+      const imgW = Math.min(W - M * 2, 320);
+      const imgH = Math.round(imgW * 0.75);
+      if (y + imgH > 780) {
+        doc.addPage();
+        header();
+        y = 56;
+      }
+      doc.setFillColor(225, 232, 228);
+      doc.roundedRect(M, y, imgW, imgH, 4, 4, 'F');
+      doc.addImage(data.imageUrl!, 'PNG', M, y, imgW, imgH);
+      y += imgH + 6;
+      if (data.imageLabel) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...COL.grey);
+        doc.text(data.imageLabel, M, y);
+        y += 14;
+      }
+    } catch {
+      // image embed failed silently - continue without it
+    }
+    next = 4;
+  }
+
+  // AI Analysis
+  section(`${next++}. AI Analysis`);
   para(`Symptom profile: ${data.diagnosis.activeSymptoms.length ? data.diagnosis.activeSymptoms.join(', ') : 'none provided (image-driven)'}.`);
   para(data.diagnosis.defect.reasoning);
 
-  // 4. Possible causes
-  section('4. Possible Causes & Likelihood');
+  // Possible causes
+  section(`${next++}. Possible Causes & Likelihood`);
   const topCauses = data.diagnosis.defect.causes.slice(0, 5);
   for (const c of topCauses) {
     doc.setFillColor(225, 232, 228);
@@ -128,9 +160,9 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     y += 4;
   }
 
-  // 5. Confidence score
+  // Quality / Confidence score
   if (data.quality) {
-    section('5. Dispensing Quality Score');
+    section(`${next++}. Dispensing Quality Score`);
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...COL.accent);
@@ -142,12 +174,12 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     doc.text(`Shape ${data.quality.shape}/5   Size ${data.quality.size}/5   Position ${data.quality.position}/5   Defect risk ${data.quality.defectRisk}/5`, M, y);
     y += 20;
   } else {
-    section('5. Confidence Score');
+    section(`${next++}. Confidence Score`);
     para(`Overall defect confidence: ${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}% based on the identified symptom profile.`);
   }
 
-  // 6. Actions
-  section('6. Recommended Troubleshooting Sequence');
+  // Actions
+  section(`${next++}. Recommended Troubleshooting Sequence`);
   for (const a of data.actions) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
@@ -171,8 +203,8 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     y += 6;
   }
 
-  // 7. Engineer notes
-  section('7. Engineer Notes');
+  // Engineer notes
+  section(`${next}. Engineer Notes`);
   para(data.engineerNotes || 'No engineer notes recorded for this session.');
 
   doc.save(fileName);
