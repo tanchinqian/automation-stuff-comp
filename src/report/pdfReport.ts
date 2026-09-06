@@ -158,7 +158,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     doc.setFillColor(...C.bar);
     doc.roundedRect(barX, barY, barW, 6, 3, 3, 'F');
 
-    // Likelihood bar fill — colour-coded by score
+    // Likelihood bar fill - colour-coded by score
     const fill = barW * score;
     const fillColor: [number,number,number] =
       score >= 0.75 ? [255, 155, 60] :
@@ -206,10 +206,10 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   doc.rect(ML, y, CW, 1, 'F');
   y += 14;
 
-  // Section counter — auto-increments so optional sections never break numbering
+  // Section counter - auto-increments so optional sections never break numbering
   let sn = 1;
 
-  // ── 1. Problem Description ──────────────────────────────────────────────
+  // ── 1. Problem Description ───────────────────────────────────────────────────
   section(`${sn++}. Problem Description`, 0);
   kv('Material', data.diagnosis.material || 'Not specified');
   para(
@@ -218,7 +218,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
       : 'Operator reported a dispensing defect. No material type was specified.',
   );
 
-  // ── 2. Identified Defect ──────────────────────────────────────────────
+  // ── 2. Identified Defect ─────────────────────────────────────────────────────
   section(`${sn++}. Identified Dispensing Defect`);
   kv('Defect type',  data.diagnosis.defect.defectName);
   kv('Confidence',   `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
@@ -228,11 +228,9 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   if (data.imageUrl) {
     section(`${sn++}. Image Inspection`);
     try {
-      // Max display width is content width; scale height proportionally
       const imgW = Math.min(CW, 320);
       const imgH = Math.round(imgW * 0.75); // assume ~4:3 canvas
       guard(imgH + 20);
-      // Draw a light border rect behind the image
       doc.setFillColor(...C.light);
       doc.roundedRect(ML, y, imgW, imgH, 4, 4, 'F');
       doc.addImage(data.imageUrl, 'PNG', ML, y, imgW, imgH);
@@ -245,11 +243,11 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
         y += 14;
       }
     } catch {
-      // Image embed failed silently — continue without it
+      // Image embed failed silently - continue without it
     }
   }
 
-  // ── AI Analysis ────────────────────────────────────────────────────
+  // ── AI Analysis ──────────────────────────────────────────────────────────────
   section(`${sn++}. AI Analysis`);
   if (data.diagnosis.activeSymptoms.length) {
     para(`Symptom profile (${data.diagnosis.activeSymptoms.length} indicators):`, { color: C.grey, size: 8.5, gap: 2 });
@@ -257,13 +255,13 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   }
   para(data.diagnosis.defect.reasoning);
 
-  // ── Possible Causes ────────────────────────────────────────────────────────
+  // ── Possible Causes ──────────────────────────────────────────────────────────
   section(`${sn++}. Possible Causes & Likelihood`);
   for (const c of data.diagnosis.defect.causes.slice(0, 5)) {
     causeCard(c.name, c.category, c.score, c.description);
   }
 
-  // ── Quality / Confidence Score ────────────────────────────────────────────
+  // ── Quality / Confidence Score ──────────────────────────────────────────────
   if (data.quality) {
     section(`${sn++}. Dispensing Quality Score`);
     guard(70);
@@ -303,7 +301,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
     y += 48;
   } else {
     section(`${sn++}. Confidence Score`);
-    para(`Overall defect confidence: ${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}% — based on the identified symptom profile.`);
+    para(`Overall defect confidence: ${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}% based on the identified symptom profile.`);
   }
 
   // ── Troubleshooting Sequence ──────────────────────────────────────────────────
@@ -343,7 +341,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-troubleshoo
   }
 
   // ── Engineer Notes ─────────────────────────────────────────────────────────────
-  section(`${sn++}. Engineer Notes`);
+  section(`${sn}. Engineer Notes`);
   para(data.engineerNotes || 'No engineer notes recorded for this session.', { color: C.grey });
 
   // ── Final footer ─────────────────────────────────────────────────────────────
