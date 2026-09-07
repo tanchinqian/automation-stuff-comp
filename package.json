@@ -9,6 +9,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers && node .test.mjs",
+    "test:benchmark": "esbuild tests/run_all_tests.ts --bundle --platform=node --format=esm --outfile=.test_all.mjs --log-level=error --external:@huggingface/transformers && node .test_all.mjs",
+    "test:all": "npm run test && npm run test:benchmark",
     "boards:placeholder": "node scripts/generate-placeholder-boards.mjs",
     "boards:real": "node scripts/build-boards.mjs"
   },

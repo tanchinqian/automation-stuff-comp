@@ -138,11 +138,12 @@ export function scoreCauses(
     const reasonSyms = reasonMap.get(causeId as CauseId) ?? [];
     const reasons =
       reasonSyms.length > 0
-        ? reasonSyms.map((s) =>
-            emphasisSet.has(s)
-              ? `'${SYMPTOMS[s].label}' is emphasized by the operator and points toward this cause (boosted evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`
-              : `'${SYMPTOMS[s].label}' points toward this cause (evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`,
-          )
+        ? reasonSyms.map((s) => {
+            const lbl = SYMPTOMS[s]?.label ?? s;
+            return emphasisSet.has(s)
+              ? `'${lbl}' is emphasized by the operator and points toward this cause (boosted evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`
+              : `'${lbl}' points toward this cause (evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`;
+          })
         : ['No direct symptom evidence; scored from baseline prior probability.'];
 
     rows.push({
@@ -163,7 +164,7 @@ export function scoreCauses(
 export function buildReasoning(result: DiagnosisResult): string {
   const top = result.causes[0];
   const second = result.causes[1];
-  const syms = result.activeSymptoms.map((s) => SYMPTOMS[s].label.toLowerCase());
+  const syms = result.activeSymptoms.map((s) => (SYMPTOMS[s]?.label ?? s).toLowerCase());
 
   if (result.activeSymptoms.length === 0) {
     return 'Limited symptom data was provided. This ranking is based on the baseline likelihood of known dispensing failure causes.';
