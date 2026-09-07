@@ -1,14 +1,14 @@
 [
   {
     "id": "TC-DISP-001",
-    "name": "Trapped Air Bubbles in Syringe Barrel",
+    "name": "Trapped Air Cavitation in Syringe Barrel",
     "material": "adhesive",
-    "mockUserInput": "The dot volume is inconsistent and I see visible air bubbles in the syringe after changing barrels.",
+    "mockUserInput": "The dot volume is inconsistent with visible air voids in the syringe and unpurged lines after barrel replacement.",
     "symptoms": [
       "inconsistent-size",
-      "occurrence-occasional",
       "material-voids",
-      "starts-after-pause"
+      "occurrence-occasional",
+      "purge-not-done"
     ],
     "emphasized": [
       "material-voids"
@@ -17,12 +17,11 @@
     "expectedTopCause": "air-bubble",
     "expectedTop3Causes": [
       "air-bubble",
-      "nozzle-blockage",
-      "material-viscosity"
+      "pressure-unstable",
+      "valve-wear"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
-      "nozzle-blockage"
+      "air-bubble"
     ]
   },
   {
@@ -63,7 +62,7 @@
       "material-changed-batch"
     ],
     "emphasized": [
-      "spread-beyond"
+      "material-changed-batch"
     ],
     "groundTruthDefect": "excessive-spread",
     "expectedTopCause": "material-viscosity",
@@ -80,25 +79,25 @@
     "id": "TC-DISP-004",
     "name": "Main Air Line Regulator Fluctuation",
     "material": "sealant",
-    "mockUserInput": "Dispense volume varies randomly across multiple locations and the pressure gauge needle fluctuates.",
+    "mockUserInput": "Dispense volume varies randomly across multiple locations and the pressure gauge needle visibly fluctuates.",
     "symptoms": [
       "inconsistent-size",
       "pressure-visible-fluctuation",
       "occurrence-occasional",
-      "multi-location"
+      "multi-location",
+      "recent-change-parameter"
     ],
     "emphasized": [
       "pressure-visible-fluctuation"
     ],
     "groundTruthDefect": "inconsistent-volume",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "pressure-unstable",
     "expectedTop3Causes": [
-      "air-bubble",
       "pressure-unstable",
-      "valve-wear"
+      "valve-wear",
+      "air-bubble"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
       "pressure-unstable"
     ]
   },
@@ -118,14 +117,13 @@
       "height-distance"
     ],
     "groundTruthDefect": "excessive-spread",
-    "expectedTopCause": "material-viscosity",
+    "expectedTopCause": "needle-height",
     "expectedTop3Causes": [
-      "material-viscosity",
       "needle-height",
+      "material-viscosity",
       "temperature"
     ],
     "expectedActionPlanSequence": [
-      "material-viscosity",
       "needle-height"
     ]
   },
@@ -133,7 +131,7 @@
     "id": "TC-DISP-006",
     "name": "Valve Open-Time Parameter Drift",
     "material": "adhesive",
-    "mockUserInput": "Every shot is consistently too large following a recipe parameter modification.",
+    "mockUserInput": "Every shot is consistently too large following a recipe open-time parameter modification.",
     "symptoms": [
       "amount-too-large",
       "occurrence-continuous",
@@ -143,14 +141,13 @@
       "recent-change-parameter"
     ],
     "groundTruthDefect": "oversized-dot",
-    "expectedTopCause": "material-viscosity",
+    "expectedTopCause": "dispense-time",
     "expectedTop3Causes": [
-      "material-viscosity",
       "dispense-time",
+      "material-viscosity",
       "pressure-unstable"
     ],
     "expectedActionPlanSequence": [
-      "material-viscosity",
       "dispense-time"
     ]
   },
@@ -158,23 +155,24 @@
     "id": "TC-DISP-007",
     "name": "Cartridge Starvation & Depletion",
     "material": "solder-paste",
-    "mockUserInput": "Dots are missing entirely at specific locations after continuous production.",
+    "mockUserInput": "Dots are missing at specific locations with volume dropping over time as syringe runs empty.",
     "symptoms": [
       "missing-occasionally",
       "missing-location",
       "amount-too-small",
-      "single-location"
+      "volume-decreases-over-time"
     ],
-    "emphasized": [],
+    "emphasized": [
+      "volume-decreases-over-time"
+    ],
     "groundTruthDefect": "missing-dot",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "syringe-empty",
     "expectedTop3Causes": [
-      "air-bubble",
       "syringe-empty",
-      "nozzle-blockage"
+      "nozzle-blockage",
+      "material-cure"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
       "syringe-empty"
     ]
   },
@@ -182,23 +180,26 @@
     "id": "TC-DISP-008",
     "name": "Pneumatic Valve Seat Seal Wear",
     "material": "adhesive",
-    "mockUserInput": "Volume fluctuates occasionally across multiple locations and worsens after machine pause.",
+    "mockUserInput": "Volume fluctuates occasionally across multiple locations and worsens after machine pause and over time.",
     "symptoms": [
       "inconsistent-size",
       "occurrence-occasional",
       "starts-after-pause",
-      "multi-location"
+      "multi-location",
+      "time-based-drift"
     ],
-    "emphasized": [],
+    "emphasized": [
+      "starts-after-pause"
+    ],
     "groundTruthDefect": "inconsistent-volume",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "valve-wear",
     "expectedTop3Causes": [
-      "air-bubble",
       "valve-wear",
-      "nozzle-blockage"
+      "material-cure",
+      "fluid-separation"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble"
+      "valve-wear"
     ]
   },
   {
@@ -212,17 +213,18 @@
       "single-location",
       "recent-change-material"
     ],
-    "emphasized": [],
+    "emphasized": [
+      "missing-occasionally"
+    ],
     "groundTruthDefect": "missing-dot",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "contamination-particle",
     "expectedTop3Causes": [
-      "air-bubble",
+      "contamination-particle",
       "nozzle-blockage",
-      "contamination-particle"
+      "air-bubble"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
-      "nozzle-blockage"
+      "contamination-particle"
     ]
   },
   {
@@ -239,14 +241,13 @@
       "speed-slow-fast"
     ],
     "groundTruthDefect": "irregular-shape",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "speed-motion",
     "expectedTop3Causes": [
-      "air-bubble",
       "speed-motion",
-      "needle-height"
+      "needle-height",
+      "material-viscosity"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
       "speed-motion"
     ]
   },
@@ -254,30 +255,33 @@
     "id": "TC-DISP-011",
     "name": "In-Needle Material Curing During Pause",
     "material": "epoxy",
-    "mockUserInput": "Dispense amount is too small, volume decreases over time, and problems start right after pause.",
+    "mockUserInput": "Dispense amount is too small, volume decreases over time, and problems start right after pause with tip buildup.",
     "symptoms": [
       "amount-too-small",
       "volume-decreases-over-time",
       "starts-after-pause",
-      "time-based-drift"
+      "time-based-drift",
+      "needle-tip-buildup"
     ],
-    "emphasized": [],
+    "emphasized": [
+      "starts-after-pause"
+    ],
     "groundTruthDefect": "undersized-dot",
-    "expectedTopCause": "material-viscosity",
+    "expectedTopCause": "material-cure",
     "expectedTop3Causes": [
-      "material-viscosity",
+      "material-cure",
       "nozzle-blockage",
-      "material-cure"
+      "material-viscosity"
     ],
     "expectedActionPlanSequence": [
-      "material-viscosity"
+      "material-cure"
     ]
   },
   {
     "id": "TC-DISP-012",
     "name": "Cleanroom Thermal Shift",
     "material": "conformal-coating",
-    "mockUserInput": "Material spreads beyond area continuously and shop temperature has varied throughout the shift.",
+    "mockUserInput": "Material spreads beyond area continuously and cleanroom temperature has varied throughout the shift.",
     "symptoms": [
       "spread-beyond",
       "temperature-varied",
@@ -289,14 +293,13 @@
       "temperature-varied"
     ],
     "groundTruthDefect": "excessive-spread",
-    "expectedTopCause": "material-viscosity",
+    "expectedTopCause": "temperature",
     "expectedTop3Causes": [
-      "material-viscosity",
       "temperature",
+      "material-viscosity",
       "needle-height"
     ],
     "expectedActionPlanSequence": [
-      "material-viscosity",
       "temperature"
     ]
   },
@@ -304,73 +307,76 @@
     "id": "TC-DISP-013",
     "name": "Lot Contamination & Filler Clumping",
     "material": "thermal-paste",
-    "mockUserInput": "Irregular dot shapes with voids observed right after introducing a new material batch.",
+    "mockUserInput": "Irregular dot shapes observed right after introducing a new material batch.",
     "symptoms": [
       "shape-irregular",
-      "material-voids",
       "material-changed-batch",
-      "occurrence-occasional"
+      "occurrence-occasional",
+      "recent-change-material"
     ],
     "emphasized": [
       "material-changed-batch"
     ],
     "groundTruthDefect": "irregular-shape",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "material-contamination",
     "expectedTop3Causes": [
-      "air-bubble",
       "material-contamination",
-      "material-viscosity"
+      "material-viscosity",
+      "fluid-separation"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble",
       "material-contamination"
     ]
   },
   {
     "id": "TC-DISP-014",
-    "name": "Stagnant Syringe Fluid Separation",
+    "name": "Stagnant Syringe Fluid Separation / Settling",
     "material": "solder-paste",
-    "mockUserInput": "Inconsistent volume that drifts over run time and degrades after pause periods.",
+    "mockUserInput": "Inconsistent volume that drifts over run time and degrades after pause periods with batch changes.",
     "symptoms": [
       "inconsistent-size",
       "time-based-drift",
       "starts-after-pause",
-      "occurrence-occasional"
+      "occurrence-occasional",
+      "material-changed-batch"
     ],
-    "emphasized": [],
+    "emphasized": [
+      "time-based-drift"
+    ],
     "groundTruthDefect": "inconsistent-volume",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "fluid-separation",
     "expectedTop3Causes": [
-      "air-bubble",
       "fluid-separation",
-      "material-viscosity"
+      "material-viscosity",
+      "material-cure"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble"
+      "fluid-separation"
     ]
   },
   {
     "id": "TC-DISP-015",
     "name": "Nozzle Tip Dried Skin & Crusting",
     "material": "adhesive",
-    "mockUserInput": "Dots have irregular shape with elongation and dried crust buildup on needle tip.",
+    "mockUserInput": "Dots have irregular shape with elongation and dried crust buildup on needle tip after pause.",
     "symptoms": [
       "shape-irregular",
       "dot-elongated",
-      "needle-tip-buildup"
+      "needle-tip-buildup",
+      "starts-after-pause"
     ],
     "emphasized": [
       "needle-tip-buildup"
     ],
     "groundTruthDefect": "irregular-shape",
-    "expectedTopCause": "air-bubble",
+    "expectedTopCause": "nozzle-blockage",
     "expectedTop3Causes": [
-      "air-bubble",
-      "needle-height",
-      "nozzle-blockage"
+      "nozzle-blockage",
+      "material-cure",
+      "needle-height"
     ],
     "expectedActionPlanSequence": [
-      "air-bubble"
+      "nozzle-blockage"
     ]
   }
 ]

@@ -84,16 +84,33 @@ export function identifyDefect(active: SymptomId[]): { defectId: DefectId; confi
   return { defectId: best, confidence };
 }
 
+/** Domain-specific operational explanations distinguishing why specific failure modes rank #1. */
+const CAUSE_DIFFERENTIATORS: Partial<Record<CauseId, string>> = {
+  'pressure-unstable': 'Visible line pressure fluctuations and multi-location volumetric drift indicate pneumatic regulator or air supply instability rather than fluid cavitation.',
+  'nozzle-blockage': 'Continuous undersized delivery and dried material crusting on the needle tip indicate mechanical bore restriction.',
+  'material-viscosity': 'Viscosity shift is primary due to new material lots, temperature shifts, or uncontrolled slump beyond the target pad boundary.',
+  'dispense-time': 'Direct process parameter modifications and consistent volumetric enlargement indicate valve open-time or shot size recipe drift.',
+  'needle-height': 'Spreading, wetting variance, and tip clearance adjustments indicate incorrect Z-height standoff between nozzle and substrate.',
+  'syringe-empty': 'Continuous volume reduction and missing dots at target locations indicate cartridge fluid starvation as the barrel empties.',
+  'valve-wear': 'Intermittent volume drift across multiple locations worsening after machine pause indicates valve seat or packing seal wear.',
+  'speed-motion': 'Directional dot elongation, tailing, and misshapen profiles directly correlate with gantry acceleration and traverse speed settings.',
+  'material-cure': 'Progressive volume decline over run time and severe degradation after idle pauses indicate in-needle material skinning / premature curing.',
+  'material-contamination': 'Irregular geometry and voids appearing immediately after a material batch switch indicate lot contamination or filler clump separation.',
+  'fluid-separation': 'Progressive volume drift over extended run times indicates filler settling in stagnant dispensing material.',
+  temperature: 'Cleanroom ambient or material temperature variations directly alter fluid rheology, viscosity, and surface wetting dynamics.',
+  'contamination-particle': 'Intermittent missing dots localized to single points after material handling indicate foreign particulates lodging in the needle orifice.',
+  'air-bubble': 'Intermittent dot-to-dot volume variation and visible voids indicate compressed air pockets trapped in the fluid supply.',
+};
+
 /**
  * Score every cause for a defect.
  *
- * Each active symptom contributes evidence to every cause through two routes:
- *   1. the defect's own causeWeights (symptom is characteristic of this defect)
- *   2. the direct symptom->cause knowledge map (SYMPTOM_CAUSES)
- * Evidence is blended with the cause's prior probability. Results are
- * normalised against the strongest cause so scores spread meaningfully
- * (matching the spec's example: 85% / 70% / 65% / 45% / 25%) instead of
- * saturating at 100%.
+ * Each active symptom contributes evidence to causes based directly on
+ * the verified domain knowledge map (SYMPTOM_CAUSES), modulated by the
+ * defect's contextual affinity (causeWeights).
+ *
+ * Evidence is blended with the cause's prior probability (75% evidence / 25% prior)
+ * and normalised against the strongest cause so scores spread meaningfully.
  */
 export function scoreCauses(
   defectId: DefectId,
@@ -109,31 +126,37 @@ export function scoreCauses(
   const emphasisSet = new Set(emphasized ?? []);
 
   for (const sym of active) {
-    // Emphasized symptoms (operator stressed them) carry extra weight.
-    const strength = (EVIDENCE_STRENGTH[sym] ?? 0.5) * (emphasisSet.has(sym) ? 1.3 : 1);
+    // Emphasized symptoms (operator stressed them) carry a 1.35x evidence multiplier
+    const strength = (EVIDENCE_STRENGTH[sym] ?? 0.5) * (emphasisSet.has(sym) ? 1.35 : 1.0);
     const direct = SYMPTOM_CAUSES[sym] ?? {};
-    const causes = new Set<CauseId>([...Object.keys(direct), ...Object.keys(defect.causeWeights)] as CauseId[]);
-    for (const causeId of causes) {
-      const viaSymptomMap = direct[causeId] ?? 0;
-      const viaDefect = defect.symptoms.includes(sym) ? (defect.causeWeights[causeId] ?? 0.2) : 0;
-      const contribution = Math.max(viaSymptomMap, viaDefect) * strength;
-      if (contribution > 0) {
-        rawEvidence.set(causeId, (rawEvidence.get(causeId) ?? 0) + contribution);
-        const list = reasonMap.get(causeId) ?? [];
-        if (!list.includes(sym)) list.push(sym);
-        reasonMap.set(causeId, list);
+
+    for (const [causeKey, directWeight] of Object.entries(direct)) {
+      const causeId = causeKey as CauseId;
+      if (directWeight && directWeight > 0) {
+        const defectAffinity = defect.causeWeights[causeId] ?? 0.3;
+        // Direct symptom evidence modulated by defect context (cannot leak to causes with 0 direct weight)
+        const contribution = directWeight * strength * (0.65 + 0.35 * defectAffinity);
+        if (contribution > 0) {
+          rawEvidence.set(causeId, (rawEvidence.get(causeId) ?? 0) + contribution);
+          const list = reasonMap.get(causeId) ?? [];
+          if (!list.includes(sym)) list.push(sym);
+          reasonMap.set(causeId, list);
+        }
       }
     }
   }
 
   const maxEvidence = Math.max(1, ...rawEvidence.values());
-  const PRIOR_BLEND = 0.3;
+  const PRIOR_BLEND = 0.25;
 
   for (const [causeId, cause] of Object.entries(CAUSES)) {
     const prior = priors?.[causeId as CauseId] ?? cause.prior;
     const ev = rawEvidence.get(causeId as CauseId) ?? 0;
     const normEv = ev / maxEvidence;
-    const score = Math.min(1, Math.max(0, PRIOR_BLEND * prior + (1 - PRIOR_BLEND) * normEv));
+    // Score based on blended evidence and prior; non-indicated causes receive suppressed baseline
+    const score = ev > 0
+      ? Math.min(1, Math.max(0, PRIOR_BLEND * prior + (1 - PRIOR_BLEND) * normEv))
+      : Math.min(1, Math.max(0, prior * 0.4));
 
     const reasonSyms = reasonMap.get(causeId as CauseId) ?? [];
     const reasons =
@@ -141,7 +164,7 @@ export function scoreCauses(
         ? reasonSyms.map((s) => {
             const lbl = SYMPTOMS[s]?.label ?? s;
             return emphasisSet.has(s)
-              ? `'${lbl}' is emphasized by the operator and points toward this cause (boosted evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`
+              ? `'${lbl}' is emphasized by the operator and strongly indicates this cause (boosted evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`
               : `'${lbl}' points toward this cause (evidence weight ${(EVIDENCE_STRENGTH[s] ?? 0.5).toFixed(2)}).`;
           })
         : ['No direct symptom evidence; scored from baseline prior probability.'];
@@ -174,10 +197,17 @@ export function buildReasoning(result: DiagnosisResult): string {
   parts.push(
     `"${top.name}" is ranked first because the reported symptoms (${syms.slice(0, 3).join(', ')}) align with its characteristic failure mode.`,
   );
+
+  const differentiator = CAUSE_DIFFERENTIATORS[top.causeId];
+  if (differentiator) {
+    parts.push(differentiator);
+  }
+
   if (second) {
     const gap = Math.max(1, Math.round((top.score - second.score) * 100));
     parts.push(`It leads "${second.name}" by ${gap}% likelihood in the evidence-adjusted score.`);
   }
+
   const specific = top.reasons.filter((r) => r !== 'No direct symptom evidence; scored from baseline prior probability.');
   if (specific.length > 0) {
     parts.push(specific.slice(0, 2).join(' '));
