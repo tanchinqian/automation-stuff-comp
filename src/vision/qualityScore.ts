@@ -1,4 +1,5 @@
 import type { BoardAnalysis, DetectedClass, ImageAnalysis } from './analyzeImage';
+export { calculateDeterministicQualityScore, type DispenseQualityInput, type DeterministicQualityResult } from '../engine/qualityScore';
 
 export interface QualityBreakdown {
   shape: number; // 0-5
@@ -16,30 +17,35 @@ function star(v: number): number {
 }
 
 /**
- * Bonus Challenge 2: derive a Dispensing Quality Score from CV metrics.
- * Higher score = better quality.
+ * Bonus Challenge 2: derive a Deterministic Dispensing Quality Score from CV metrics.
+ * 3-axis industrial breakdown: Size Consistency (35%), Shape Circularity (35%), Position/Standoff (30%).
  */
 export function qualityScore(a: ImageAnalysis): QualityBreakdown {
   const { metrics } = a;
 
-  // Shape consistency: perfect circularity = 1
+  // 1. Shape Circularity (35% weight): 4*pi*area / perimeter^2 (1.0 = perfect circle)
   const shape = Math.max(0, Math.min(1, metrics.meanCircularity));
 
-  // Size consistency: low coefficient of variation = good
-  const size = Math.max(0, 1 - metrics.areaCv * 1.6);
+  // 2. Size / Volume Consistency (35% weight): deviation vs nominal target (<10% nominal, >20% penalized)
+  const maxDev = Math.abs(metrics.maxDeviation);
+  let size = 1.0;
+  if (maxDev <= 0.10) {
+    size = 1.0 - (maxDev / 0.10) * 0.10;
+  } else if (maxDev <= 0.20) {
+    size = 0.90 - ((maxDev - 0.10) / 0.10) * 0.30;
+  } else {
+    size = Math.max(0, 0.60 - ((maxDev - 0.20) / 0.30) * 0.60);
+  }
 
-  // Position consistency: perfect grid alignment, penalise spread & eccentricity
-  const position = Math.max(0, 1 - Math.min(1, metrics.spreadRatio - 1) * 0.8 - metrics.meanEccentricity * 0.3);
+  // 3. Position / Standoff Offset (30% weight): center offset and spread ratio
+  const position = Math.max(0, 1 - Math.min(1, Math.max(0, metrics.spreadRatio - 1.0) * 0.8 + metrics.meanEccentricity * 0.3));
 
-  // Defect risk: fraction of good dots
+  // Defect risk index (fraction of perfect non-defective deposits)
   const total = Math.max(1, metrics.count + metrics.missingCount);
   const goodRatio = a.dots.filter((d) => d.class === 'perfect').length / total;
   const defectRisk = Math.max(0, Math.min(1, goodRatio));
 
-  const weights = { shape: 0.25, size: 0.3, position: 0.2, defectRisk: 0.25 };
-  const overall = Math.round(
-    (shape * weights.shape + size * weights.size + position * weights.position + defectRisk * weights.defectRisk) * 100,
-  );
+  const overall = Math.round((size * 0.35 + shape * 0.35 + position * 0.30) * 100);
 
   return {
     shape: star(shape),

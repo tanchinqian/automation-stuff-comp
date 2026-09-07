@@ -1,5 +1,7 @@
 import { runDiagnosis, identifyDefect, scoreCauses } from '../src/engine/scorer';
 import { buildActionPlan } from '../src/engine/actions';
+import { calculateDeterministicQualityScore } from '../src/engine/qualityScore';
+import { findMatchingHistoricalIncidents, getHistoricalGroundingForCause } from '../src/engine/historicalMatcher';
 import { HeuristicNlu } from '../src/nlu/llmRouter';
 import { CAUSES, DEFECTS, SYMPTOMS, MATERIALS } from '../src/engine/knowledgeBase';
 import type { CauseId, DefectId, SymptomId, MaterialType } from '../src/engine/types';
@@ -92,7 +94,6 @@ export async function runSchemaAndEdgeCaseTests(): Promise<TestResult[]> {
   });
 
   record('Adversarial & Edge Cases', 'Contradictory symptoms handled gracefully without NaN', () => {
-    // Both too small and too large, continuous and once
     const contradictory: SymptomId[] = ['amount-too-small', 'amount-too-large', 'occurrence-continuous', 'occurrence-once'];
     const report = runDiagnosis(contradictory, 'epoxy');
     if (Number.isNaN(report.defect.defectConfidence) || report.defect.causes.some((c) => Number.isNaN(c.score))) {
@@ -147,7 +148,6 @@ export async function runSchemaAndEdgeCaseTests(): Promise<TestResult[]> {
     const nlu = new HeuristicNlu();
     const res = await nlu.parse('x9871239841723 @#$%^&*()_+ zzzzz 123456');
     if (!res.summary || res.symptoms.length !== 0) {
-      // should return empty symptoms and summary gracefully
       if (!res.summary.includes('No specific symptoms detected')) {
         throw new Error(`Unexpected summary for gibberish input: ${res.summary}`);
       }
@@ -165,6 +165,59 @@ export async function runSchemaAndEdgeCaseTests(): Promise<TestResult[]> {
     }
   });
 
+  // ── 4. Deterministic Quality Score Validation (Bonus 2) ───────────────────
+  record('Quality Score Validation (Bonus 2)', 'Evaluates 3-axis tolerances with physical star ratings', () => {
+    // Golden deposit: 4% deviation, 0.95 circularity, 2% offset -> 5 stars / PASS_GOLDEN
+    const golden = calculateDeterministicQualityScore({
+      diameterDeviationPct: 0.04,
+      circularity: 0.95,
+      centerOffsetPct: 0.02,
+    });
+    if (golden.overall < 90 || golden.stars.overall !== 5 || golden.toleranceStatus !== 'PASS_GOLDEN') {
+      throw new Error(`Golden deposit scored incorrectly: ${golden.overall} (${golden.toleranceStatus})`);
+    }
+
+    // Marginal deposit: 18% deviation, 0.75 circularity, 12% offset
+    const marginal = calculateDeterministicQualityScore({
+      diameterDeviationPct: 0.18,
+      circularity: 0.75,
+      centerOffsetPct: 0.12,
+    });
+    if (marginal.overall >= 90 || marginal.overall < 50 || marginal.stars.overall < 3) {
+      throw new Error(`Marginal deposit scored incorrectly: ${marginal.overall}`);
+    }
+
+    // Severely defective deposit: 35% deviation, 0.40 circularity, 28% offset -> REJECT_DEFECTIVE
+    const defective = calculateDeterministicQualityScore({
+      diameterDeviationPct: 0.35,
+      circularity: 0.40,
+      centerOffsetPct: 0.28,
+    });
+    if (defective.overall >= 50 || defective.toleranceStatus !== 'REJECT_DEFECTIVE' || defective.stars.overall > 2) {
+      throw new Error(`Defective deposit scored incorrectly: ${defective.overall} (${defective.toleranceStatus})`);
+    }
+  });
+
+  // ── 5. Historical Learning Database Validation (Bonus 3) ──────────────────
+  record('Historical DB Validation (Bonus 3)', 'Queries historical incident repository and enriches diagnosis', () => {
+    const report = runDiagnosis(
+      ['inconsistent-size', 'pressure-visible-fluctuation', 'occurrence-occasional', 'multi-location'],
+      'sealant',
+    );
+    const topCause = report.defect.causes[0];
+    if (topCause.causeId !== 'pressure-unstable') {
+      throw new Error(`Expected pressure-unstable top cause, got: ${topCause.causeId}`);
+    }
+    // Check that historical grounding note is attached
+    const hasHistory = topCause.reasons.some((r) => r.includes('[Historical Grounding]') && r.includes('Line 4'));
+    if (!hasHistory) {
+      throw new Error('Diagnostic cause missing historical grounding note from factory database');
+    }
+    if (!report.defect.reasoning.includes('Factory History:')) {
+      throw new Error('Diagnosis reasoning narrative missing Factory History section');
+    }
+  });
+
   return results;
 }
 
@@ -177,7 +230,7 @@ export function printSchemaTestReport(results: TestResult[]): void {
   for (const r of results) {
     const status = r.passed ? 'PASS' : 'FAIL';
     if (r.passed) passedCount++;
-    const suiteName = r.suite.padEnd(28);
+    const suiteName = r.suite.padEnd(35);
     const testName = r.name.padEnd(65);
     console.log(`[${status}] ${suiteName} | ${testName} ${r.message ? `\n       Error: ${r.message}` : ''}`);
   }

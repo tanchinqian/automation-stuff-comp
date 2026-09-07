@@ -223,6 +223,8 @@ export interface DiagnosticReport {
   qualityScore?: number;
 }
 
+import { enrichDiagnosisWithHistory } from './historicalMatcher';
+
 export function runDiagnosis(
   active: SymptomId[],
   material: string,
@@ -242,5 +244,7 @@ export function runDiagnosis(
     reasoning: '',
   };
   diagnosis.reasoning = buildReasoning(diagnosis);
+  // Attach historical factory resolution records (Bonus Challenge 3)
+  enrichDiagnosisWithHistory(diagnosis);
   return { defect: diagnosis, material, timestamp: Date.now(), activeSymptoms: [...active] };
 }
