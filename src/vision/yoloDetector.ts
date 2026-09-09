@@ -10,7 +10,6 @@ export interface YoloDetection {
 }
 
 const MODEL_URL = 'models/solder-defect.onnx';
-const WASM_PATHS = 'models/';
 const INPUT_SIZE = 640;
 const CONF_THRESHOLD = 0.25;
 const NMS_THRESHOLD = 0.45;
@@ -19,17 +18,23 @@ let session: ort.InferenceSession | null = null;
 let loadPromise: Promise<boolean> | null = null;
 let lastError: string | null = null;
 
-/** Load the ONNX session once (WebGPU first, WASM fallback). */
+/** Absolute URL of the WASM runtime directory, derived from the page location. */
+function wasmDir(): string {
+  return new URL('models/', document.baseURI).href;
+}
+
+/** Load the ONNX session once via the WASM execution provider (works in any browser). */
 export async function yoloAvailable(): Promise<boolean> {
   if (session) return true;
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
-      // Point onnxruntime-web at the stable (un-hashed) WASM files served from
-      // public/models so Vite's hashing cannot break runtime discovery.
-      ort.env.wasm.wasmPaths = WASM_PATHS;
+      // WASM-only: WebGPU is unavailable in Firefox and adds a fragile dynamic
+      // import of the jsep glue module. Point wasmPaths at an absolute URL so
+      // the runtime resolves the .wasm regardless of the script's hashed path.
+      ort.env.wasm.wasmPaths = wasmDir();
       session = await ort.InferenceSession.create(MODEL_URL, {
-        executionProviders: ['webgpu', 'wasm'],
+        executionProviders: ['wasm'],
       });
       return true;
     } catch (e) {

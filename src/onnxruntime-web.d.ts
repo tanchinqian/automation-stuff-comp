@@ -3,7 +3,7 @@ declare module 'onnxruntime-web' {
   export type ExecutionProvider = 'webgpu' | 'wasm' | 'cpu' | string;
 
   export interface WasmEnv {
-    wasmPaths?: string;
+    wasmPaths?: string | { wasm?: string; mjs?: string };
     numThreads?: number;
   }
 
