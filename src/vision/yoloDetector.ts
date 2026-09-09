@@ -11,7 +11,7 @@ export interface YoloDetection {
 
 const MODEL_URL = 'models/solder-defect.onnx';
 const INPUT_SIZE = 640;
-const CONF_THRESHOLD = 0.35;
+const CONF_THRESHOLD = 0.25;
 const NMS_THRESHOLD = 0.45;
 
 let session: ort.InferenceSession | null = null;
