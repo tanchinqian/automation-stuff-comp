@@ -15,6 +15,13 @@ solder-paste (SPI) inspection images. When real data is bundled, credit:
 
 Usage is for research/benchmark and educational demonstration.
 
+## Bundled YOLO detection model
+
+`public/models/solder-defect.onnx` is a **YOLOv8s model trained on the PCB-AoI
+dataset** (classes: `less-paste`, `bridging`). It runs fully on-device via
+`onnxruntime-web`; no image leaves the browser. Training scripts live in
+`scripts/` (`yolo_prep.py`, `train_yolo.py`, `export_yolo.py`).
+
 ## Bundled placeholder boards (currently shipping)
 
 The repo currently ships **schematic placeholder boards** in `public/boards/`

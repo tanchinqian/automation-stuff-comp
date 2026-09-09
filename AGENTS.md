@@ -10,14 +10,16 @@ Guidance for AI agents working on this repository. Read this before making any c
 - Product truth: read `PRODUCT.md`.
 - Design system (the canonical visual authority): read `DESIGN.md` and `.impeccable/design.json`.
 - Live on-device NLU: Chrome Gemini Nano -> on-device model (transformers.js) -> embedded keyword engine. Always works offline.
+- On-device vision: real-board detection runs a trained YOLOv8s (ONNX via onnxruntime-web) with a classical per-pad CV fallback; schematic/webcam/live use classical CV only.
 - Architecture map:
   - `src/engine/` knowledge base, evidence scoring, question flow, action plan
-  - `src/vision/` computer-vision pipeline, synthetic defect generator, quality score
+  - `src/vision/` computer-vision pipeline (classical + `yoloDetector.ts`), synthetic defect generator, quality score
   - `src/nlu/` layered offline LLM router
   - `src/db/` IndexedDB learning database + case-based priors
   - `src/report/` on-device PDF report generator
   - `src/ui/` UI modules (workbench, live, learning DB, report)
   - `src/live/` ESP32-CAM live-stream wiring point (placeholder)
+  - `public/models/` bundled YOLOv8s ONNX + classes (ships in repo)
 
 ## Commands
 

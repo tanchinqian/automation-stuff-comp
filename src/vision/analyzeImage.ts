@@ -495,3 +495,73 @@ function gapFillRatio(
   }
   return total ? pasted / total : 0;
 }
+
+/* ===========================================================================
+ * YOLO-driven board analysis.
+ * Maps on-device detector detections into the shared BoardAnalysis shape so
+ * quality scoring, symptom mapping and the UI all stay unchanged.
+ * ========================================================================== */
+
+import type { YoloDetection } from './yoloDetector';
+
+export interface DetectionCounts {
+  lessPaste: number;
+  bridging: number;
+  other: number;
+}
+
+/**
+ * Build a BoardAnalysis from on-device YOLO detections. Each detection box
+ * becomes a PadResult carrying its class + confidence-derived fillRatio.
+ * `imageWidth/Height` convert normalized rects to pixels for the overlay.
+ */
+export function analyzeBoardFromDetections(
+  detections: YoloDetection[],
+  imageWidth: number,
+  imageHeight: number,
+): BoardAnalysis {
+  const pads: PadResult[] = [];
+  const defectCounts: Record<BoardDefectClass, number> = { good: 0, 'less-paste': 0, missing: 0, bridging: 0, misalignment: 0 };
+
+  detections.forEach((d, index) => {
+    const cls: PadResult['class'] = d.class === 'bridging' ? 'bridging' : 'less-paste';
+    defectCounts[cls]++;
+    pads.push({
+      index,
+      rect: {
+        x: Math.round(d.rect.x * imageWidth),
+        y: Math.round(d.rect.y * imageHeight),
+        w: Math.round(d.rect.w * imageWidth),
+        h: Math.round(d.rect.h * imageHeight),
+      },
+      fillRatio: d.confidence, // reuse confidence as the "fill" signal for scoring
+      centroidDx: 0,
+      centroidDy: 0,
+      bridged: d.class === 'bridging',
+      class: cls,
+    });
+  });
+
+  let dominant: BoardDefectClass = 'good';
+  let domN = 0;
+  for (const k of ['less-paste', 'missing', 'bridging', 'misalignment'] as BoardDefectClass[]) {
+    if (defectCounts[k] > domN) {
+      domN = defectCounts[k];
+      dominant = k;
+    }
+  }
+  const defectDetected = pads.length > 0;
+  const goodRatio = pads.length ? 0 : 1; // no detections = no defects found
+  const boardQuality = Math.round(goodRatio * 100);
+
+  return { pads, defectCounts, dominantDefect: dominant, defectDetected, boardQuality };
+}
+
+/** Convenience: total detection count by canonical class for the legend. */
+export function detectionCounts(board: BoardAnalysis): DetectionCounts {
+  return {
+    lessPaste: board.defectCounts['less-paste'],
+    bridging: board.defectCounts.bridging,
+    other: board.defectCounts.missing + board.defectCounts.misalignment,
+  };
+}

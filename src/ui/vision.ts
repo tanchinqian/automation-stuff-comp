@@ -1,4 +1,5 @@
-import { analyzeBoard, BOARD_CLASS_LABELS, imageDataFromCanvas, type BoardAnalysis, type PadResult } from '../vision/analyzeImage';
+import { analyzeBoard, analyzeBoardFromDetections, BOARD_CLASS_LABELS, detectionCounts, imageDataFromCanvas, type BoardAnalysis } from '../vision/analyzeImage';
+import { yoloAvailable, detectBoard } from '../vision/yoloDetector';
 import { generateSyntheticImage, type SyntheticScene } from '../vision/syntheticGenerator';
 import { boardQualityScore, type QualityBreakdown } from '../vision/qualityScore';
 import { createRegistry } from '../data';
@@ -222,17 +223,34 @@ export function createInspectionPanel(opts: {
     if (f) loadFile(f);
   };
 
-  const run = () => {
+  const run = async () => {
     if (!lastImageData) {
       legend.textContent = 'No frame to analyze - pick a board, generate a schematic, or upload a photo first.';
       return;
     }
-    const board = analyzeBoard(lastImageData, lastPadRois);
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'PROCESSING…';
+    let board: BoardAnalysis;
+    try {
+      if (await yoloAvailable()) {
+        legend.textContent = 'Running on-device YOLO detection…';
+        const detections = await detectBoard(lastImageData);
+        board = analyzeBoardFromDetections(detections, lastImageData.width, lastImageData.height);
+      } else {
+        board = analyzeBoard(lastImageData, lastPadRois);
+      }
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = 'ANALYZE BOARD';
+    }
+
     lastBoard = board;
     drawBoardOverlay(canvas, board);
     const quality = boardQualityScore(board);
     const dominant = BOARD_CLASS_LABELS[board.dominantDefect];
-    legend.innerHTML = `Pads: <b>${board.pads.length}</b> · dominant: <b style="color:var(--${board.dominantDefect === 'missing' ? 'danger' : board.dominantDefect === 'good' ? 'accent' : 'warn'})">${dominant.toUpperCase()}</b> · defects: ${board.defectCounts['less-paste']} less / ${board.defectCounts.missing} missing / ${board.defectCounts.bridging} bridge / ${board.defectCounts.misalignment} align`;
+    const counts = detectionCounts(board);
+    legend.innerHTML = `${board.pads.length} detection(s) · <b style="color:var(--${board.dominantDefect === 'missing' ? 'danger' : board.dominantDefect === 'good' ? 'accent' : 'warn'})">${dominant.toUpperCase()}</b> · less-paste ${counts.lessPaste} / bridging ${counts.bridging}`;
 
     clear(qualityBox);
     const qh = el('div', 'q-hero');
@@ -272,7 +290,7 @@ export function createInspectionPanel(opts: {
   const head = el('div', 'panel-head');
   head.appendChild(el('span', 'tick'));
   head.appendChild(el('span', 'title', 'Image Inspection'));
-  head.appendChild(el('span', 'hint', 'real board · classical per-pad CV'));
+  head.appendChild(el('span', 'hint', 'real board · on-device YOLO detection'));
   panelEl.appendChild(head);
   panelEl.appendChild(body);
 
@@ -291,6 +309,7 @@ function drawBoardOverlay(canvas: HTMLCanvasElement, board: BoardAnalysis): void
     ctx.strokeRect(x, y, w, h);
     ctx.fillStyle = CLASS_COLORS[pad.class];
     ctx.font = 'bold 10px monospace';
-    ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase(), x + 2, y - 4);
+    const conf = pad.fillRatio > 0 && pad.fillRatio <= 1 ? ` ${(pad.fillRatio * 100).toFixed(0)}%` : '';
+    ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase() + conf, x + 2, y - 4);
   }
 }

@@ -12,8 +12,9 @@ Most teams ship a chatbot that wraps ChatGPT. This project inverts that:
 
 - **A transparent diagnostic engine** (rules + evidence scoring) is the brain. Every
   ranking is traceable: *which symptoms pointed at which cause, and why.*
-- **Classical computer vision** (Otsu threshold → connected-component labelling →
-  defect classification) — not "upload to a vision API".
+- **On-device AI vision** — a trained YOLOv8s detector (ONNX via onnxruntime-web)
+  finds solder-paste defects on real boards, with a classical per-pad CV fallback.
+  No image ever leaves the browser.
 - **A genuinely learning database** — cases and their resolved fixes update the
   cause priors, so the tool gets smarter with each use, entirely in the browser.
 - **Layered on-device NLU** — Chrome Gemini Nano → in-browser model (transformers.js)
@@ -28,7 +29,7 @@ Most teams ship a chatbot that wraps ChatGPT. This project inverts that:
 | 3 | Defect identification with confidence | ✅ |
 | 4 | Ranked possible causes with likelihood bars + **explained reasoning** | ✅ |
 | 5 | Troubleshooting action plan (sequential checks) | ✅ |
-| 6 | **Image recognition** via a real CV pipeline + synthetic demo generator + photo upload (Bonus 1) | ✅ |
+| 6 | **Image recognition** — on-device YOLOv8s detection + synthetic demo generator + photo upload (Bonus 1) | ✅ |
 | 7 | **Dispensing Quality Score** (shape/size/position/defect-risk → /100) (Bonus 2) | ✅ |
 | 8 | **AI Learning Database** in IndexedDB — cases, resolved outcomes, prior updates (Bonus 3) | ✅ |
 | 9 | **PDF troubleshooting report** generated on-device (Bonus 4) | ✅ |
@@ -62,18 +63,19 @@ scripts/
   build-boards.mjs                  converts a real VOC dataset into boards.json
 ```
 
-## Real inspection data (swappable dataset)
+## Real inspection data (on-device YOLO + swappable dataset)
 
-The Workbench inspection panel analyzes real SPI/PCB boards via a **classical
-per-pad computer-vision pipeline** (no model, fully offline). Boards come from
-a swappable dataset provider in `src/data/`:
+The Workbench inspection panel analyzes real SPI/PCB boards with a **trained
+YOLOv8s detector** running fully on-device via `onnxruntime-web` (model in
+`public/models/solder-defect.onnx`). A classical per-pad CV pipeline is the
+fallback when the model is unavailable. Boards come from a swappable dataset
+provider in `src/data/`:
 
 - **Active dataset** is chosen in `src/data/datasetConfig.ts`.
 - **PCB-AoI** (`src/data/providers/pcbAoi.ts`) is the target real dataset
-  (solder-paste SPI: less-paste, missing, bridging, misalignment), read from
-  `public/boards/boards.json`.
-- The repo currently ships **schematic placeholder boards** so the pipeline and
-  gallery run end-to-end offline. To bundle the real dataset:
+  (solder-paste SPI: less-paste, bridging), read from `public/boards/boards.json`.
+- The repo ships **schematic placeholder boards** so the gallery runs offline.
+  To bundle the real dataset:
 
   ```
   npm i -D sharp
@@ -84,10 +86,21 @@ a swappable dataset provider in `src/data/`:
   downscales images. See `ATTRIBUTION.md` for dataset credits.
 
 - A **Custom provider** (`src/data/providers/custom.ts`) is the escape hatch for
-  future datasets or live photo uploads without touching the CV pipeline.
+  future datasets or live photo uploads without touching the detector.
 
-Two detection modes exist in `src/vision/analyzeImage.ts`:
-`analyzeImage` (round dispensing dots) and `analyzeBoard` (per-pad SPI).
+### Training the YOLO model (one-time)
+
+The bundled model is trained on the PCB-AoI dataset (GPU optional):
+
+```
+python scripts/yolo_prep.py     # VOC -> YOLO images/labels + data.yaml
+python scripts/train_yolo.py    # train yolov8s, 150 epochs, then export ONNX
+python scripts/export_yolo.py   # (if training was interrupted) export best.pt -> onnx
+```
+
+Output lands in `public/models/solder-defect.onnx` + `classes.json`. Detection
+code lives in `src/vision/yoloDetector.ts`; `analyzeBoardFromDetections` maps
+detections into the shared `BoardAnalysis` shape.
 
 ## ESP32-CAM live stream (placeholder)
 

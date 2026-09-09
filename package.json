@@ -8,9 +8,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers && node .test.mjs",
+    "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers --external:onnxruntime-web && node .test.mjs",
     "boards:placeholder": "node scripts/generate-placeholder-boards.mjs",
-    "boards:real": "node scripts/build-boards.mjs"
+    "boards:real": "node scripts/build-boards.mjs",
+    "yolo:prep": "python scripts/yolo_prep.py",
+    "yolo:train": "python scripts/train_yolo.py",
+    "yolo:export": "python scripts/export_yolo.py"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.1",

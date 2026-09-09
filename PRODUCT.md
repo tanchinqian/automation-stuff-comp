@@ -21,19 +21,19 @@ Success means an operator reaches a confident, correct first troubleshooting ste
 
 ## Positioning
 
-A combined, transparent engine: a domain-grounded dispensing failure-mode knowledge base drives explainable rule-and-evidence scoring, paired with classical computer-vision image analysis and a case-based learning database. The whole system runs entirely on-device in the browser with no cloud dependency, and every ranking is traceable to the symptom evidence and prior cases that produced it. A generic chatbot or a cloud API wrapper cannot truthfully claim this offline, explainable, learning pipeline.
+A combined, transparent engine: a domain-grounded dispensing failure-mode knowledge base drives explainable rule-and-evidence scoring, paired with on-device AI vision (a trained YOLOv8s detector with a classical per-pad CV fallback) and a case-based learning database. The whole system runs entirely on-device in the browser with no cloud dependency, and every ranking is traceable to the symptom evidence and prior cases that produced it. A generic chatbot or a cloud API wrapper cannot truthfully claim this offline, explainable, learning pipeline.
 
 ## Operating Context
 
 - Used on a shop floor or demo station in a browser, fully offline-capable (no API keys, no server).
-- Workflows: describe a problem (5 smart intake questions + dynamic follow-ups, or free text parsed by layered on-device NLU); optionally inspect a dispensing image via a classical CV pipeline; review the ranked causes and reasoning; follow the recommended action plan; feed back which cause actually fixed the issue.
+- Workflows: describe a problem (5 smart intake questions + dynamic follow-ups, or free text parsed by layered on-device NLU); optionally inspect a dispensing image via on-device AI vision (trained YOLOv8s) or classical CV fallback; review the ranked causes and reasoning; follow the recommended action plan; feed back which cause actually fixed the issue.
 - Learning database persists locally (IndexedDB) and updates cause priors from resolved cases.
 - A troubleshooting report can be generated as an on-device PDF (problem, defect, analysis, causes, confidence, actions, engineer notes).
 - Live Inspection mode supports a webcam and synthetic simulator now; an ESP32-CAM stream is a stubbed placeholder.
 
 ## Capabilities and Constraints
 
-- Capabilities: 5 smart questions + dynamic follow-ups; defect identification with confidence; ranked causes with likelihood bars and explained reasoning; troubleshooting action plan; classical CV image analysis (Otsu threshold, connected components) + synthetic defect generator + photo upload; dispensing quality score (shape/size/position/defect-risk to /100); IndexedDB learning database with case-based priors and seed demo data; on-device PDF report; live inspection (simulator + webcam + ESP32 stub).
+- Capabilities: 5 smart questions + dynamic follow-ups; defect identification with confidence; ranked causes with likelihood bars and explained reasoning; troubleshooting action plan; on-device AI vision (trained YOLOv8s for real SPI boards, classical CV fallback + synthetic defect generator + photo upload); dispensing quality score (shape/size/position/defect-risk to /100); IndexedDB learning database with case-based priors and seed demo data; on-device PDF report; live inspection (simulator + webcam + ESP32 stub).
 - NLU is a layered fallback: Chrome Gemini Nano, then an on-device model (transformers.js), then an embedded keyword engine. It always works offline; the model download needs internet once.
 - Constraints: vanilla TypeScript + Vite, no framework; client-only, no server. ESP32-CAM live-stream wiring is not yet implemented (placeholder in src/live/esp32.ts). Serving over http (not https) is required to reach a local ESP32 stream (mixed-content).
 - Undecided: none material.
