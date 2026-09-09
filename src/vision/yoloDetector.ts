@@ -10,6 +10,7 @@ export interface YoloDetection {
 }
 
 const MODEL_URL = 'models/solder-defect.onnx';
+const WASM_PATHS = 'models/';
 const INPUT_SIZE = 640;
 const CONF_THRESHOLD = 0.25;
 const NMS_THRESHOLD = 0.45;
@@ -24,12 +25,16 @@ export async function yoloAvailable(): Promise<boolean> {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
+      // Point onnxruntime-web at the stable (un-hashed) WASM files served from
+      // public/models so Vite's hashing cannot break runtime discovery.
+      ort.env.wasm.wasmPaths = WASM_PATHS;
       session = await ort.InferenceSession.create(MODEL_URL, {
         executionProviders: ['webgpu', 'wasm'],
       });
       return true;
     } catch (e) {
       lastError = (e as Error).message;
+      console.error('yoloDetector: failed to create session', e);
       session = null;
       return false;
     }

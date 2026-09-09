@@ -7,7 +7,9 @@ if __name__ == "__main__":
 
     best = Path("runs/detect/runs/yolo8s-pcb/weights/best.pt")
     model = YOLO(str(best))
-    model.export(format="onnx", half=True, imgsz=640)
+    # fp32 export: onnxruntime-web WASM cannot execute fp16 models, and this
+    # guarantees it runs in every browser (Chrome/Edge/Firefox) without WebGPU.
+    model.export(format="onnx", half=False, imgsz=640)
     print("EXPORT_DONE")
     onnx = best.with_suffix(".onnx")
     if onnx.exists():

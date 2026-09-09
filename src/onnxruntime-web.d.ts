@@ -2,6 +2,17 @@ declare module 'onnxruntime-web' {
   export type TensorDataType = 'float32' | 'float64' | 'int32' | 'int64' | 'uint8' | 'bool' | 'string';
   export type ExecutionProvider = 'webgpu' | 'wasm' | 'cpu' | string;
 
+  export interface WasmEnv {
+    wasmPaths?: string;
+    numThreads?: number;
+  }
+
+  export interface Env {
+    wasm: WasmEnv;
+  }
+
+  export const env: Env;
+
   export class Tensor {
     constructor(type: TensorDataType, data: ArrayBufferView | number[], dims: number[]);
     readonly data: ArrayBufferView;
