@@ -7,14 +7,14 @@ colors:
   warn-amber: "#ffb64d"
   danger-red: "#ff5f6d"
   chat-user-blue: "#5aa9ff"
-  console-ink: "#d7dde6"
-  console-ink-dim: "#8a93a6"
-  console-ink-faint: "#5a6272"
-  surface-0: "#07090d"
-  surface-1: "#0d1016"
-  surface-2: "#12161f"
-  surface-3: "#1a1f2b"
-  hairline: "#232a38"
+  console-ink: "#f0f4f8"
+  console-ink-dim: "#9fb0c8"
+  console-ink-faint: "#7687a1"
+  surface-0: "#0b0e14"
+  surface-1: "#121721"
+  surface-2: "#18202d"
+  surface-3: "#222b3d"
+  hairline: "#2c384d"
   on-accent: "#06130e"
   amber-bar-deep: "#b8862f"
   danger-bar-deep: "#a93a45"
@@ -25,49 +25,49 @@ typography:
     letterSpacing: "0.1em"
   score:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "40px"
+    fontSize: "42px"
     fontWeight: 700
   hero-title:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "21px"
+    fontSize: "22px"
     fontWeight: 600
   headline:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "17px"
+    fontSize: "18px"
     fontWeight: 600
   title:
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
-    fontSize: "15px"
+    fontSize: "16px"
     fontWeight: 600
   body:
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
-    fontSize: "14px"
-    lineHeight: 1.5
+    fontSize: "15px"
+    lineHeight: 1.6
   small-body:
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
-    fontSize: "13px"
+    fontSize: "14px"
   label:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "11px"
+    fontSize: "12px"
     letterSpacing: "0.08em"
     textTransform: "uppercase"
   micro-label:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "10px"
+    fontSize: "11px"
   control-label:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "12px"
+    fontSize: "13px"
   question:
     fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
-    fontSize: "16px"
+    fontSize: "17px"
     fontWeight: 600
   stat:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "19px"
+    fontSize: "20px"
     fontWeight: 700
   empty-state:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
-    fontSize: "34px"
+    fontSize: "36px"
 rounded:
   xs: "2px"
   sm: "4px"
@@ -85,12 +85,12 @@ components:
     backgroundColor: "{colors.phosphor-green}"
     textColor: "#06130e"
     rounded: "{rounded.md}"
-    padding: "9px 16px"
+    padding: "10px 18px"
   button-default:
     backgroundColor: "{colors.surface-3}"
     textColor: "{colors.console-ink}"
     rounded: "{rounded.md}"
-    padding: "9px 16px"
+    padding: "10px 18px"
   panel:
     backgroundColor: "{colors.surface-1}"
     textColor: "{colors.console-ink}"
@@ -99,7 +99,7 @@ components:
     backgroundColor: "{colors.surface-2}"
     textColor: "{colors.console-ink-dim}"
     rounded: "{rounded.md}"
-    padding: "9px 13px"
+    padding: "10px 14px"
 ---
 
 # Design System: DISPENSE.AI
@@ -108,12 +108,12 @@ components:
 
 **Creative North Star: "The Precision Lab Console"**
 
-DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a near-black control surface, phosphor-green readouts, monospace numerals, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: crisp corners, thin borders, tabular numerals, and status conveyed through a single disciplined accent rather than decorative color.
+DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a clean, high-contrast dark control surface, phosphor-green readouts, monospace numerals, and crisp hairline separators. The density is calibrated for an operator scanning data under time pressure: clear visual cards, tabular numerals, and status conveyed through a single disciplined accent.
 
 The personality is precise and unassuming. It earns attention through density, alignment, and the confidence of a well-calibrated machine, not through flourish. The one moment of life is the phosphor-green accent that marks the active, the ranked, and the actionable. Amber and red exist strictly as semantic warning/defect states and never as decoration.
 
 **Key Characteristics:**
-- Dark charcoal surfaces with a single phosphor-green accent (plus amber/danger reserved for semantic states).
+- Dark obsidian and slate surfaces with a single phosphor-green accent (plus amber/danger reserved for semantic states).
 - Monospace for numerals, labels, and panel titles; sans-serif for body and descriptions.
 - Dense, cockpit-grade spacing with hairline separators and tight, precise cards.
 - Instrument markers: corner ticks, scanline texture, cause-tree visuals, tabular numerals.
@@ -134,11 +134,11 @@ A restrained dark palette with one dominant phosphor-green accent. Color is a si
 - **Amber Bar Deep** (#b8862f) and **Danger Bar Deep** (#a93a45): the deeper end of the amber/red gradient fills on confidence bars, for legibility of the fill against the track.
 
 ### Neutral
-- **Console Ink** (#d7dde6): primary text.
-- **Console Ink Dim** (#8a93a6): secondary text and descriptions.
-- **Console Ink Faint** (#5a6272): hints, captions, placeholders.
-- **Surface 0/1/2/3** (#07090d / #0d1016 / #12161f / #1a1f2b): the page background through elevated surfaces.
-- **Hairline** (#232a38): borders and separators.
+- **Console Ink** (#f0f4f8): primary text.
+- **Console Ink Dim** (#9fb0c8): secondary text and descriptions.
+- **Console Ink Faint** (#7687a1): hints, captions, placeholders.
+- **Surface 0/1/2/3** (#0b0e14 / #121721 / #18202d / #222b3d): the page background through elevated surfaces.
+- **Hairline** (#2c384d): borders and separators.
 
 ### Named Rules
 **The One Voice Rule.** The phosphor-green accent is the only page accent. Amber and red are used only to carry semantic status (warning, defect, danger); blue only for the user chat. Any new color must earn a semantic role before it may appear.
@@ -152,17 +152,18 @@ A restrained dark palette with one dominant phosphor-green accent. Color is a si
 **Character:** Monospace carries the instrument language (labels, panel titles, numerals, status); the sans-serif body keeps descriptions readable at density. Uppercase mono labels are the signposting voice of the console.
 
 ### Hierarchy
-- **Display / Score** (700, mono, 40px): the big quality-score readout.
-- **Hero Title** (600, 21px): the identified-defect heading.
-- **Headline** (600, 17px): panel/dialog titles.
-- **Title** (600, 15px): question text and hero headings.
-- **Body** (400, 14px, line-height 1.5): descriptions, reasoning, action detail. ~65ch max.
-- **Small Body** (400, 13px / 13.5px): chat bubbles, bar names, reasoning text.
-- **Label** (mono, 11px, uppercase, tracking 0.08em): section labels, chip text, status chips.
-- **Micro Label** (mono, 10px / 10.5px): category tags, footnote-style labels.
+- **Display / Score** (700, mono, 42px): the big quality-score readout.
+- **Hero Title** (600, 22px): the identified-defect heading.
+- **Headline** (600, 18px): panel/dialog titles.
+- **Title** (600, 16px): question text and hero headings.
+- **Body** (400, 15px, line-height 1.6): descriptions, reasoning, action detail. ~65ch max.
+- **Small Body** (400, 14px): chat bubbles, bar names, reasoning text.
+- **Control Label** (mono, 13px): buttons, inputs, tabs.
+- **Label** (mono, 12px, uppercase, tracking 0.08em): section labels, chip text, status chips.
+- **Micro Label** (mono, 11px): category tags, footnote-style labels.
 - **Numerals** (mono, tabular-nums): every number display (percentages, scores, metrics) uses tabular figures so columns align.
 
-Type ramp used across the system (px): 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 15, 16, 17, 19, 21, 24, 34, 40.
+Type ramp used across the system (px): 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 16, 17, 18, 19, 20, 22, 24, 34, 36, 42.
 
 ### Named Rules
 **The Tabular Rule.** All numeric readouts set `font-variant-numeric: tabular-nums` so values align in columns and feel like instrument readouts.

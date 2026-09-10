@@ -1,13 +1,13 @@
 :root {
-  --bg-0: #07090d;
-  --bg-1: #0d1016;
-  --bg-2: #12161f;
-  --bg-3: #1a1f2b;
-  --line: #232a38;
-  --line-soft: #1a202b;
-  --ink: #d7dde6;
-  --ink-dim: #8a93a6;
-  --ink-faint: #5a6272;
+  --bg-0: #0b0e14;
+  --bg-1: #121721;
+  --bg-2: #18202d;
+  --bg-3: #222b3d;
+  --line: #2c384d;
+  --line-soft: #20293a;
+  --ink: #f0f4f8;
+  --ink-dim: #9fb0c8;
+  --ink-faint: #7687a1;
 
   /* One accent + two semantic status hues. Locked across the whole app. */
   --accent: #2ee6a8;
@@ -43,13 +43,13 @@ html {
 
 body {
   background:
-    radial-gradient(1100px 500px at 70% -10%, rgba(46, 230, 168, 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(90, 169, 255, 0.05), transparent 60%),
+    radial-gradient(1100px 500px at 70% -10%, rgba(46, 230, 168, 0.05), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(90, 169, 255, 0.04), transparent 60%),
     var(--bg-0);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
   overflow-x: hidden;
 }
 
@@ -175,7 +175,7 @@ label,
   font-family: var(--mono);
   font-weight: 700;
   letter-spacing: 0.08em;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--ink);
 }
 .brand .mark {
@@ -200,9 +200,9 @@ label,
   align-items: center;
   gap: 7px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-dim);
-  padding: 5px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--bg-2);
@@ -228,8 +228,8 @@ label,
 }
 .nav-tab {
   font-family: var(--mono);
-  font-size: 12px;
-  padding: 7px 14px;
+  font-size: 13px;
+  padding: 8px 16px;
   color: var(--ink-dim);
   border: 1px solid transparent;
   background: transparent;
@@ -306,7 +306,7 @@ label,
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
 }
@@ -318,7 +318,7 @@ label,
 }
 .panel-head .title {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--ink);
@@ -326,19 +326,19 @@ label,
 }
 .panel-head .hint {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-faint);
 }
 .panel-body {
-  padding: 16px;
+  padding: 18px;
 }
 
 /* ---------- Buttons ---------- */
 .btn {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.05em;
-  padding: 9px 16px;
+  padding: 10px 18px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-3);
@@ -373,8 +373,8 @@ label,
   background: transparent;
 }
 .btn.sm {
-  padding: 5px 10px;
-  font-size: 11px;
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 /* ---------- Questions ---------- */
@@ -383,13 +383,13 @@ label,
 }
 .question-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   letter-spacing: 0.08em;
   margin-bottom: 6px;
 }
 .question-text {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   margin-bottom: 10px;
   color: var(--ink);
@@ -401,8 +401,8 @@ label,
 }
 .opt {
   font-family: var(--mono);
-  font-size: 12px;
-  padding: 9px 13px;
+  font-size: 13px;
+  padding: 10px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -435,8 +435,8 @@ label,
 .freetext-input {
   flex: 1;
   font-family: var(--mono);
-  font-size: 13px;
-  padding: 10px 12px;
+  font-size: 14px;
+  padding: 11px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -452,7 +452,7 @@ label,
 
 .nlu-note {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-faint);
   margin-top: 8px;
 }
@@ -496,14 +496,14 @@ label,
   }
 }
 .msg .avatar {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   border-radius: var(--r-3);
   display: grid;
   place-items: center;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -523,11 +523,12 @@ label,
   flex-direction: row-reverse;
 }
 .msg .bubble {
-  padding: 10px 13px;
+  padding: 11px 15px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-2);
-  font-size: 13.5px;
+  font-size: 15px;
+  line-height: 1.6;
   max-width: 640px;
 }
 .msg.ai .bubble {
@@ -543,13 +544,13 @@ label,
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--bg-2);
   margin-bottom: 12px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 .evidence-strip .elabel {
   color: var(--ink-faint);
@@ -560,7 +561,7 @@ label,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border: 1px solid var(--line);
   border-radius: var(--r-2);
   color: var(--ink-dim);
@@ -580,17 +581,17 @@ label,
 
 /* ---------- Image gate notice ---------- */
 .gate-notice {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid rgba(255, 182, 77, 0.25);
   border-radius: var(--r-4);
   background: rgba(255, 182, 77, 0.05);
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--ink-dim);
   margin-top: 4px;
 }
 .gate-notice .g-label {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--warn);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -601,25 +602,26 @@ label,
 .diag-hero {
   border: 1px solid var(--line);
   border-radius: var(--r-5);
-  padding: 16px;
+  padding: 18px;
   background: linear-gradient(135deg, rgba(46, 230, 168, 0.07), transparent 55%);
   margin-bottom: 16px;
 }
 .diag-hero .kicker {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 .diag-hero h2 {
-  font-size: 21px;
+  font-size: 22px;
   margin: 4px 0 6px;
   color: var(--ink);
 }
 .diag-hero p {
   color: var(--ink-dim);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.6;
 }
 .confidence-row {
   display: flex;
@@ -629,27 +631,27 @@ label,
 }
 .confidence-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-dim);
 }
 .confidence-value {
   font-family: var(--mono);
   font-weight: 700;
   color: var(--accent);
-  font-size: 16px;
+  font-size: 17px;
 }
 
 /* bars */
 .bar-row {
   display: grid;
-  grid-template-columns: 130px 1fr 46px;
+  grid-template-columns: 140px 1fr 50px;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
+  gap: 12px;
+  padding: 8px 0;
 }
 .bar-row .name {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--ink-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -659,7 +661,7 @@ label,
   color: var(--ink);
 }
 .bar-track {
-  height: 9px;
+  height: 10px;
   background: var(--bg-3);
   border-radius: var(--r-2);
   overflow: hidden;
@@ -691,23 +693,24 @@ label,
 }
 .bar-row .pct {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
   text-align: right;
 }
 
 .reasoning {
   margin-top: 14px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border: 1px solid rgba(255, 182, 77, 0.22);
   background: rgba(255, 182, 77, 0.05);
   border-radius: var(--r-4);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--ink-dim);
 }
 .reasoning .rlabel {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--warn);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -726,8 +729,8 @@ label,
   align-items: center;
   gap: 10px;
   font-family: var(--mono);
-  font-size: 12px;
-  padding: 8px 10px;
+  font-size: 13px;
+  padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--bg-2);
@@ -740,7 +743,7 @@ label,
   flex: 0 0 9px;
 }
 .tree-node .cat {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -761,7 +764,7 @@ label,
 .action-step {
   display: flex;
   gap: 12px;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--bg-2);
@@ -771,8 +774,8 @@ label,
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
-  flex: 0 0 26px;
-  height: 26px;
+  flex: 0 0 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 1px solid var(--accent-dim);
@@ -780,11 +783,12 @@ label,
 }
 .action-step .title {
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 14.5px;
   color: var(--ink);
 }
 .action-step .detail {
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--ink-dim);
   margin-top: 2px;
 }
@@ -799,26 +803,26 @@ label,
 .q-card {
   border: 1px solid var(--line);
   border-radius: var(--r-4);
-  padding: 12px;
+  padding: 14px;
   background: var(--bg-2);
   text-align: center;
 }
 .q-card .qlabel {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 .q-card .stars {
-  font-size: 17px;
+  font-size: 18px;
   color: var(--warn);
   letter-spacing: 2px;
   margin: 6px 0;
 }
 .q-card .qval {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-dim);
 }
 .q-hero {
@@ -831,13 +835,13 @@ label,
 }
 .q-hero .score {
   font-family: var(--mono);
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 700;
   color: var(--accent);
 }
 .q-hero .score-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-dim);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -863,8 +867,8 @@ label,
 }
 .scene-chip {
   font-family: var(--mono);
-  font-size: 11px;
-  padding: 6px 10px;
+  font-size: 12px;
+  padding: 7px 12px;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -895,7 +899,7 @@ label,
 }
 .overlay-legend {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--ink-faint);
   margin-top: 8px;
   line-height: 1.6;
@@ -917,19 +921,19 @@ label,
 .metric {
   border: 1px solid var(--line);
   border-radius: var(--r-4);
-  padding: 9px 11px;
+  padding: 10px 14px;
   background: var(--bg-2);
 }
 .metric .k {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .metric .v {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 15px;
   color: var(--ink);
   margin-top: 2px;
 }
@@ -946,8 +950,8 @@ label,
   flex: 1;
   min-width: 180px;
   font-family: var(--mono);
-  font-size: 12px;
-  padding: 8px 10px;
+  font-size: 13px;
+  padding: 9px 12px;
   border-radius: var(--r-4);
   border: 1px dashed var(--line);
   background: var(--bg-2);
@@ -960,8 +964,8 @@ label,
 }
 .live-badge {
   font-family: var(--mono);
-  font-size: 10.5px;
-  padding: 4px 9px;
+  font-size: 11px;
+  padding: 5px 10px;
   border-radius: 14px;
   border: 1px solid var(--line);
   color: var(--ink-faint);
@@ -981,19 +985,19 @@ label,
 .stat {
   border: 1px solid var(--line);
   border-radius: var(--r-4);
-  padding: 10px;
+  padding: 12px;
   background: var(--bg-2);
 }
 .stat .k {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .stat .v {
   font-family: var(--mono);
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--ink);
   margin-top: 2px;
@@ -1008,11 +1012,11 @@ label,
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--line-soft);
   border-radius: var(--r-4);
   background: var(--bg-2);
-  font-size: 12.5px;
+  font-size: 13.5px;
   margin-bottom: 6px;
 }
 .hist-row .mat {
@@ -1026,20 +1030,20 @@ label,
 .hist-row .res {
   color: var(--warn);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 11.5px;
 }
 
 /* feedback */
 .feedback {
   margin-top: 14px;
-  padding: 12px;
+  padding: 14px;
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
   background: rgba(46, 230, 168, 0.04);
 }
 .feedback .flabel {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--ink-dim);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1055,8 +1059,8 @@ label,
 .notes-area {
   width: 100%;
   font-family: var(--mono);
-  font-size: 12.5px;
-  padding: 10px 12px;
+  font-size: 13.5px;
+  padding: 11px 13px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -1075,7 +1079,7 @@ label,
   border-top: 1px solid var(--line);
   color: var(--ink-faint);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
@@ -1096,13 +1100,13 @@ label,
 .empty-state {
   text-align: center;
   color: var(--ink-faint);
-  font-size: 13px;
+  font-size: 14px;
   padding: 40px 20px;
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
 }
 .empty-state .big {
-  font-size: 34px;
+  font-size: 36px;
   margin-bottom: 8px;
 }
 

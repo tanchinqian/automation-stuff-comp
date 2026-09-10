@@ -86,7 +86,7 @@ export function renderReportTab(host: HTMLElement): void {
     row.style.gap = '8px';
     const lbl = el('div', 'name');
     lbl.style.flex = '1';
-    lbl.style.fontSize = '13px';
+    lbl.style.fontSize = '14px';
     lbl.textContent = label;
     row.appendChild(lbl);
 

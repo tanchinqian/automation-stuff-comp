@@ -50,7 +50,7 @@ export function emptyState(title: string, sub = ''): HTMLElement {
   if (sub) {
     const s = el('div', '', sub);
     s.style.marginTop = '6px';
-    s.style.fontSize = '12px';
+    s.style.fontSize = '13px';
     e.appendChild(s);
   }
   return e;

@@ -376,7 +376,7 @@ export function renderDiagnosis(
   if (!report || !actions) {
     body.appendChild(el('div', 'empty-state', ''));
     const e = body.lastChild as HTMLElement;
-    e.innerHTML = '<div class="big">◆-◆</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
+    e.innerHTML = '<div class="big">◆-◆</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:13.5px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
     return;
   }
 
