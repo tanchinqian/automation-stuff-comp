@@ -12,3 +12,8 @@ Thumbs.db
 /train_data/
 /test_data/
 /train_data_augmentation/
+
+# YOLO training artifacts (only public/models ships)
+/runs/
+/weights/
+yolov8s.pt

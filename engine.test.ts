@@ -3,7 +3,7 @@ import { buildActionPlan } from './src/engine/actions.ts';
 import { seedCases, priorOverrides } from './src/db/caseDB.ts';
 import { HeuristicNlu } from './src/nlu/llmRouter.ts';
 import { qualityScore, boardQualityScore, boardClassToSymptoms } from './src/vision/qualityScore.ts';
-import { analyzeBoard, boardClassFromName, type BoardAnalysis } from './src/vision/analyzeImage.ts';
+import { analyzeBoard, analyzeBoardFromDetections, boardClassFromName, detectionCounts, type BoardAnalysis } from './src/vision/analyzeImage.ts';
 import type { ImageAnalysis } from './src/vision/analyzeImage.ts';
 
 /** Build a minimal ImageData-like object for the classical board CV in Node. */
@@ -195,6 +195,21 @@ async function main() {
   const nlu2 = new HeuristicNlu();
   const s = await nlu2.parse('the dots keep disappearing and it is driving me crazy');
   console.log(`\nHeuristic sentiment: ${s.sentiment}, emphasis: ${s.emphasis?.join(', ') ?? 'none'}, symptoms: ${s.symptoms.join(', ')}`);
+
+  // YOLO detections -> BoardAnalysis mapping
+  console.log('\n=== YOLO DETECTION MAPPING ===');
+  const mockDetections = [
+    { class: 'less-paste' as const, confidence: 0.85, rect: { x: 0.1, y: 0.2, w: 0.1, h: 0.05 } },
+    { class: 'bridging' as const, confidence: 0.9, rect: { x: 0.5, y: 0.3, w: 0.15, h: 0.06 } },
+    { class: 'bridging' as const, confidence: 0.75, rect: { x: 0.7, y: 0.6, w: 0.1, h: 0.05 } },
+  ];
+  const mapped = analyzeBoardFromDetections(mockDetections, 640, 480);
+  console.log(`detections -> pads=${mapped.pads.length}, less-paste=${mapped.defectCounts['less-paste']}, bridging=${mapped.defectCounts.bridging}, dominant=${mapped.dominantDefect}`);
+  if (mapped.pads.length !== 3) throw new Error('All detections should map to pads');
+  if (mapped.defectCounts.bridging !== 2) throw new Error('Bridging count should be 2');
+  if (mapped.dominantDefect !== 'bridging') throw new Error('Dominant defect should be bridging');
+  const dcounts = detectionCounts(mapped);
+  console.log(`legend counts: less=${dcounts.lessPaste}, bridge=${dcounts.bridging}`);
 }
 
 main().catch((e) => {

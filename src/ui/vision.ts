@@ -1,4 +1,5 @@
-import { analyzeBoard, BOARD_CLASS_LABELS, imageDataFromCanvas, type BoardAnalysis, type PadResult } from '../vision/analyzeImage';
+import { analyzeBoard, analyzeBoardFromDetections, BOARD_CLASS_LABELS, detectionCounts, imageDataFromCanvas, type BoardAnalysis, type BoardDefectClass } from '../vision/analyzeImage';
+import { yoloAvailable, detectBoard } from '../vision/yoloDetector';
 import { generateSyntheticImage, type SyntheticScene } from '../vision/syntheticGenerator';
 import { boardQualityScore, type QualityBreakdown } from '../vision/qualityScore';
 import { createRegistry } from '../data';
@@ -44,6 +45,9 @@ export function createInspectionPanel(opts: {
   let lastPadRois: { x: number; y: number; w: number; h: number }[] | undefined;
   let lastLabel = '';
   let lastBoard: BoardAnalysis | null = null;
+  let lastGroundTruth: string | null = null;
+  let lastEngine: 'yolo' | 'classical' = 'classical';
+  let currentSource: 'board' | 'schematic' | 'upload' = 'board';
 
   const registry = createRegistry();
 
@@ -130,6 +134,8 @@ export function createInspectionPanel(opts: {
       // board.json padRois are stored normalised (0..1); analyzeBoard scales to pixels
       lastPadRois = board.padRois?.length ? board.padRois : undefined;
       lastLabel = board.label;
+      lastGroundTruth = board.class === 'unknown' ? null : board.class;
+      currentSource = 'board';
       clearBoard();
       const gtLabel = board.class === 'unknown' ? 'unknown' : BOARD_CLASS_LABELS[board.class];
       legend.textContent = `${board.label} · ground truth: ${gtLabel} · run ANALYZE BOARD`;
@@ -163,6 +169,8 @@ export function createInspectionPanel(opts: {
     lastImageData = g.canvasToImageData();
     lastPadRois = undefined;
     lastLabel = `Schematic: ${scene.toUpperCase()}`;
+    lastGroundTruth = null;
+    currentSource = 'schematic';
     clearBoard();
     legend.textContent = `Schematic scene: ${scene.toUpperCase()} · generated on-device · run ANALYZE BOARD`;
   };
@@ -210,6 +218,8 @@ export function createInspectionPanel(opts: {
         lastImageData = imageDataFromCanvas(canvas);
         lastPadRois = undefined;
         lastLabel = `Uploaded: ${file.name}`;
+        lastGroundTruth = null;
+        currentSource = 'upload';
         clearBoard();
         legend.textContent = `Uploaded ${file.name} · run ANALYZE BOARD`;
       };
@@ -222,17 +232,47 @@ export function createInspectionPanel(opts: {
     if (f) loadFile(f);
   };
 
-  const run = () => {
+  const run = async () => {
     if (!lastImageData) {
       legend.textContent = 'No frame to analyze - pick a board, generate a schematic, or upload a photo first.';
       return;
     }
-    const board = analyzeBoard(lastImageData, lastPadRois);
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'PROCESSING…';
+    let board: BoardAnalysis;
+    try {
+      // Schematic scenes always use the classical pipeline (YOLO is trained on
+      // real boards only); real gallery + uploads use YOLO when available.
+      const useYolo = currentSource !== 'schematic' && (await yoloAvailable());
+      lastEngine = useYolo ? 'yolo' : 'classical';
+      if (useYolo) {
+        legend.textContent = 'Running on-device YOLO detection…';
+        const detections = await detectBoard(lastImageData);
+        board = analyzeBoardFromDetections(detections, lastImageData.width, lastImageData.height);
+      } else {
+        board = analyzeBoard(lastImageData, lastPadRois);
+      }
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = 'ANALYZE BOARD';
+    }
+
     lastBoard = board;
     drawBoardOverlay(canvas, board);
     const quality = boardQualityScore(board);
     const dominant = BOARD_CLASS_LABELS[board.dominantDefect];
-    legend.innerHTML = `Pads: <b>${board.pads.length}</b> · dominant: <b style="color:var(--${board.dominantDefect === 'missing' ? 'danger' : board.dominantDefect === 'good' ? 'accent' : 'warn'})">${dominant.toUpperCase()}</b> · defects: ${board.defectCounts['less-paste']} less / ${board.defectCounts.missing} missing / ${board.defectCounts.bridging} bridge / ${board.defectCounts.misalignment} align`;
+    const counts = detectionCounts(board);
+    engineChip.textContent = `engine: ${lastEngine === 'yolo' ? 'YOLOv8s' : 'classical'}`;
+    engineChip.classList.toggle('stub', lastEngine === 'classical');
+    const engineTag = lastEngine === 'yolo' ? '<b style="color:var(--accent)">YOLOv8s</b>' : '<b style="color:var(--warn)">classical</b>';
+    let gtTag = '';
+    if (lastGroundTruth && currentSource === 'board') {
+      const gt = BOARD_CLASS_LABELS[lastGroundTruth as BoardDefectClass] ?? lastGroundTruth;
+      const match = lastGroundTruth === board.dominantDefect;
+      gtTag = ` · GT: <b>${gt}</b> <span style="color:var(--${match ? 'accent' : 'warn'})">${match ? '✓' : '✗'}</span>`;
+    }
+    legend.innerHTML = `${engineTag} · ${board.pads.length} detection(s) · ${dominant.toUpperCase()} · less-paste ${counts.lessPaste} / bridging ${counts.bridging}${gtTag}`;
 
     clear(qualityBox);
     const qh = el('div', 'q-hero');
@@ -272,7 +312,9 @@ export function createInspectionPanel(opts: {
   const head = el('div', 'panel-head');
   head.appendChild(el('span', 'tick'));
   head.appendChild(el('span', 'title', 'Image Inspection'));
-  head.appendChild(el('span', 'hint', 'real board · classical per-pad CV'));
+  const engineChip = el('span', 'live-badge', 'engine: -');
+  head.appendChild(engineChip);
+  head.appendChild(el('span', 'hint', 'real board · on-device YOLO detection'));
   panelEl.appendChild(head);
   panelEl.appendChild(body);
 
@@ -291,6 +333,7 @@ function drawBoardOverlay(canvas: HTMLCanvasElement, board: BoardAnalysis): void
     ctx.strokeRect(x, y, w, h);
     ctx.fillStyle = CLASS_COLORS[pad.class];
     ctx.font = 'bold 10px monospace';
-    ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase(), x + 2, y - 4);
+    const conf = pad.fillRatio > 0 && pad.fillRatio <= 1 ? ` ${(pad.fillRatio * 100).toFixed(0)}%` : '';
+    ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase() + conf, x + 2, y - 4);
   }
 }
