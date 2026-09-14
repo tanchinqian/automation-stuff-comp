@@ -6,19 +6,20 @@ Guidance for AI agents working on this repository. Read this before making any c
 
 **DISPENSE.AI** (AI Dispensing Defect Detective) is a fully offline, on-device AI troubleshooting console for fluid-dispensing defects in electronics / semiconductor manufacturing.
 
-- Stack: **Vite + TypeScript**, vanilla DOM (no framework), client-only, no server.
+- Stack: **Vite + TypeScript**, vanilla DOM (no framework). The browser app calls a local FastAPI pipeline server (`server/`); no remote backend.
 - Product truth: read `PRODUCT.md`.
 - Design system (the canonical visual authority): read `DESIGN.md` and `.impeccable/design.json`.
-- Live on-device NLU: Chrome Gemini Nano -> on-device model (transformers.js) -> embedded keyword engine. Always works offline.
-- On-device vision: real-board detection runs a trained YOLOv8s (ONNX via onnxruntime-web) with a classical per-pad CV fallback; schematic/webcam/live use classical CV only.
+- NLU: free-text is parsed locally (Chrome Gemini Nano -> on-device model -> embedded keyword engine) to feed the rule engine. Conversational diagnosis chat is served by the local `server/` via the Gemini API (`POST /chat`); if it is unavailable the UI falls back to offline templates.
+- Vision: the local pipeline server runs a YOLOv8s leg detector then a MobileNetV2 crop classifier (`models/leg_classifier.onnx`). If the server is unreachable the browser falls back to on-device YOLOv8s (ONNX via onnxruntime-web) or classical per-pad CV.
 - Architecture map:
   - `src/engine/` knowledge base, evidence scoring, question flow, action plan
-  - `src/vision/` computer-vision pipeline (classical + `yoloDetector.ts`), synthetic defect generator, quality score
+  - `src/vision/` in-browser computer-vision fallback (classical + `yoloDetector.ts`) + quality score
   - `src/nlu/` layered offline LLM router
   - `src/db/` IndexedDB learning database + case-based priors
   - `src/report/` on-device PDF report generator
-  - `src/ui/` UI modules (workbench, live, learning DB, report)
-  - `src/live/` ESP32-CAM live-stream wiring point (placeholder)
+  - `src/ui/` UI modules (workbench, learning DB, report)
+  - `src/api/` typed client for the local pipeline server
+  - `server/` FastAPI pipeline API (`/analyze`, `/boards`, `/cases`)
   - `public/models/` bundled YOLOv8s ONNX + classes (ships in repo)
 
 ## Commands

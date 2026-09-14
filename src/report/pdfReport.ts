@@ -33,6 +33,42 @@ export interface ReportData {
   closedBy?: string;
   /** Sign-off: ISO date string */
   closedDate?: string;
+
+  // ── Enrichment fields ─────────────────────────────────────────────────────
+  /** raw vision pipeline result (leg counts, verdict, etc.) */
+  visionAnalysis?: {
+    board_verdict: string;
+    defect_summary: { 'Less Paste': number; Bridging: number; Good: number };
+    total_legs_detected: number;
+    flagged_legs: number;
+    low_confidence_count: number;
+  };
+  /** similar historical cases for this defect type */
+  similarCases?: {
+    total: number;
+    most_common_cause: string | null;
+    message: string;
+  };
+  /** cause the engineer confirmed as the fix */
+  confirmedCause?: string;
+
+  // ── Richer D3/D4/D5/D6 capture (all optional; degrade gracefully) ─────────
+  /** D3 containment status: Completed | In Progress | Not Required */
+  d3Status?: string;
+  d3Action?: string;
+  d3CompletedBy?: string;
+  d3CompletedAt?: string;
+  /** D4 root-cause verification status: Confirmed | Under Investigation | Disputed */
+  d4Status?: string;
+  d4Method?: string;
+  /** D5 corrective-action implementation: Scheduled | In Progress | Completed */
+  d5Status?: string;
+  d5TargetDate?: string;
+  d5Responsible?: string;
+  /** D6 permanent action: Implemented | Pending | Not Required */
+  d6Action?: string;
+  d6Status?: string;
+  d6Verified?: string;
 }
 
 // ── Monochrome palette only ───────────────────────────────────────────────────
@@ -45,7 +81,7 @@ const C = {
   white:     [255, 255, 255] as [number, number, number],
 };
 
-export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.pdf'): void {
+export function buildReportPdf(data: ReportData): jsPDF {
   const doc  = new jsPDF({ unit: 'pt', format: 'a4' });
   const W    = doc.internal.pageSize.getWidth();   // 595
   const H    = doc.internal.pageSize.getHeight();  // 842
@@ -269,7 +305,7 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   metaKv(2, 'Defect type',   data.diagnosis.defect.defectName);
   y += 12;
   metaKv(1, 'Affected units', data.affectedCount || 'Not specified');
-  metaKv(2, 'NLU engine',    data.engineLabel);
+  metaKv(2, 'System',       data.engineLabel);
   y += 12;
   metaKv(1, 'Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
   y += 14;
@@ -293,9 +329,45 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   kv('Where',    data.machineId ? `Machine / Line: ${data.machineId}` : 'Machine / Line: not specified');
   kv('When',     new Date(data.diagnosis.timestamp).toLocaleString());
   kv('How many', data.affectedCount || 'Not specified');
-  kv('How',      'Detected via AI-assisted on-device symptom analysis');
+  kv('How',      'Detected via automated solder paste inspection (SPI)');
   y += 4;
   para(data.diagnosis.defect.defectDescription);
+
+  // ── AI vision system results (compact table, only when available) ──────────
+  if (data.visionAnalysis) {
+    const va = data.visionAnalysis;
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.mid);
+    doc.text('Vision system results:', ML + 4, y);
+    y += 10;
+
+    const vaRows: [string, string][] = [
+      ['Board Verdict', va.board_verdict],
+      ['Less Paste Legs', `${va.defect_summary['Less Paste']}`],
+      ['Bridging Legs', `${va.defect_summary.Bridging}`],
+      ['Good Legs', `${va.defect_summary.Good}`],
+      ['Total Detected', `${va.total_legs_detected} legs`],
+      ['Flagged', `${va.flagged_legs} legs`],
+      ['Detection Models', 'YOLOv8n Leg Detector + MobileNetV2 Classifier'],
+    ];
+    const vaKeyX = ML + 8;
+    const vaValX = ML + 120;
+    for (const [k, v] of vaRows) {
+      guard(13);
+      const isVerdict = k === 'Board Verdict';
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...C.mid);
+      doc.text(`${k}:`, vaKeyX, y);
+      doc.setFont('helvetica', isVerdict ? 'bold' : 'normal');
+      doc.setTextColor(...C.dark);
+      doc.text(v, vaValX, y);
+      y += 13;
+    }
+    y += 2;
+  }
 
   // Inspection image - placed here in D2 Problem Description
   if (data.imageUrl) {
@@ -332,7 +404,15 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   guard(d3H);
   beginSection('Immediate containment action', 'D3');
   for (const a of containSteps) actionStep(a);
-  verifiedLine(data.containmentVerified);
+  if (data.d3Status || data.d3Action || data.d3CompletedBy || data.d3CompletedAt) {
+    y += 2;
+    if (data.d3Status) kv('Status', data.d3Status);
+    if (data.d3Action) para(`Action taken: ${data.d3Action}`, { size: 8.5 });
+    if (data.d3CompletedBy) kv('Completed by', data.d3CompletedBy);
+    if (data.d3CompletedAt) kv('Completed at', new Date(data.d3CompletedAt).toLocaleString());
+  } else {
+    verifiedLine(data.containmentVerified);
+  }
   endSection();
 
   // ── D4 Root cause ───────────────────────────────────────────────────────────
@@ -393,6 +473,20 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
     doc.setTextColor(...C.mid);
     doc.text(descLine, ML + 26, y);
     y += 14;
+
+    // Row 3: WHY reasons (lighter, smaller, italic) - only when present
+    if (c.reasons && c.reasons.length > 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(...C.mid);
+      const whyLines = doc.splitTextToSize(`Why: ${c.reasons.join('; ')}`, CW - 36);
+      for (const line of whyLines) {
+        guard(9);
+        doc.text(line, ML + 26, y);
+        y += 9;
+      }
+      y += 3;
+    }
   }
 
   // Quality score (if available) - plain text
@@ -426,7 +520,14 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
     y += 14;
   }
 
-  verifiedLine(data.rootCauseVerified);
+  if (data.d4Status || data.d4Method) {
+    y += 4;
+    rule(0.3);
+    y += 8;
+    if (data.d4Status) kv('Verification status', data.d4Status);
+    if (data.d4Method) para(`Verification method: ${data.d4Method}`, { size: 8.5 });
+  }
+  verifiedLine(data.rootCauseVerified || data.d4Status === 'Confirmed');
   endSection();
 
   // ── D5 Planned permanent corrective action ──────────────────────────────────
@@ -435,18 +536,45 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   guard(d5H);
   beginSection('Planned permanent corrective action', 'D5');
   for (const a of correctiveSteps) actionStep(a);
+  if (data.d5Status || data.d5TargetDate || data.d5Responsible) {
+    y += 2;
+    if (data.d5Status) kv('Implementation status', data.d5Status);
+    if (data.d5TargetDate) kv('Target date', data.d5TargetDate);
+    if (data.d5Responsible) kv('Responsible', data.d5Responsible);
+  }
   endSection();
 
   // ── D6 Permanent corrective action (verification) ───────────────────────────
-  guard(80);
+  guard(90);
   beginSection('Permanent corrective action', 'D6');
-  para('Operator has reviewed the recommended corrective actions above and confirmed application.', { color: C.mid, size: 8.5 });
-  verifiedLine(data.correctiveActionVerified);
+  if (data.d6Action) {
+    para(`Action description: ${data.d6Action}`, { color: C.dark, size: 9 });
+  } else {
+    para('Operator has reviewed the recommended corrective actions above and confirmed application.', { color: C.mid, size: 8.5 });
+  }
+  if (data.d6Status || data.d6Verified) {
+    y += 2;
+    if (data.d6Status) kv('Status', data.d6Status);
+    if (data.d6Verified) kv('Verified effective', data.d6Verified);
+  } else {
+    verifiedLine(data.correctiveActionVerified);
+  }
   endSection();
 
   // ── D7 Process note / lessons learned ──────────────────────────────────────
-  guard(100);
+  guard(150);
   beginSection('Process note / lessons learned', 'D7');
+
+  // Historical context from the learning database (only when cases exist)
+  if (data.similarCases && data.similarCases.total > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.mid);
+    doc.text('HISTORICAL CASE REFERENCE:', ML + 4, y);
+    y += 11;
+    para(data.similarCases.message, { color: C.dark, size: 9, gap: 8 });
+  }
+
   para(
     data.engineerNotes ||
     'No process note recorded. Update SOP and process parameters as required based on the corrective actions applied.',
@@ -475,6 +603,26 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   );
   doc.text(data.closedBy || '___________', ML + CW - 80, y);
   y += 14;
+
+  // Confirmed root cause (challenge: successful solution logged)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...C.mid);
+  doc.text('CONFIRMED ROOT CAUSE:', ML + 4, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.dark);
+  const confirmedLines = doc.splitTextToSize(
+    data.confirmedCause || '(Awaiting engineer confirmation)',
+    CW - 160,
+  );
+  doc.text(confirmedLines[0], ML + 130, y);
+  y += 12;
+  if (confirmedLines.length > 1) {
+    doc.text(confirmedLines[1], ML + 130, y);
+    y += 12;
+  }
+  y += 2;
+
   // Status line
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
@@ -488,5 +636,27 @@ export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.p
   // ── Final footer ─────────────────────────────────────────────────────────
   drawFooter();
 
-  doc.save(fileName);
+  return doc;
+}
+
+/** Build the report and download it directly. */
+export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.pdf'): void {
+  buildReportPdf(data).save(fileName);
+}
+
+/**
+ * Build the report and return an object URL for in-app preview.
+ * Call the returned revoke() when the preview is closed to release memory.
+ */
+export function previewPdfUrl(data: ReportData): { url: string; revoke: () => void } {
+  const doc = buildReportPdf(data);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  let revoked = false;
+  const revoke = () => {
+    if (revoked) return;
+    revoked = true;
+    URL.revokeObjectURL(url);
+  };
+  return { url, revoke };
 }

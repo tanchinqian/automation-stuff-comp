@@ -1,31 +1,41 @@
-import { analyzeBoard, analyzeBoardFromDetections, BOARD_CLASS_LABELS, detectionCounts, imageDataFromCanvas, type BoardAnalysis, type BoardDefectClass } from '../vision/analyzeImage';
+import { analyzeBoard, analyzeBoardFromDetections, BOARD_CLASS_LABELS, detectionCounts, imageDataFromCanvas, type BoardAnalysis, type BoardDefectClass, type PadResult } from '../vision/analyzeImage';
 import { yoloAvailable, detectBoard } from '../vision/yoloDetector';
-import { generateSyntheticImage, type SyntheticScene } from '../vision/syntheticGenerator';
 import { boardQualityScore, type QualityBreakdown } from '../vision/qualityScore';
 import { createRegistry } from '../data';
 import type { BoardImage, DatasetProvider } from '../data/types';
 import { el, clear, button, stars } from './dom';
+import {
+  analyzeBoard as apiAnalyzeBoard,
+  analyzeBoardUpload,
+  getBoards,
+  type AnalysisResult,
+  type LegResult,
+} from '../api/pipeline';
 
 export interface VisionResult {
   label: string;
   imageUrl: string;
   board?: BoardAnalysis;
   quality?: QualityBreakdown;
+  /** Full pipeline API result (present when analyzed via the local server). */
+  analysis?: AnalysisResult;
 }
 
 export interface InspectionPanelHandle {
   panel: HTMLElement;
   getResult: () => VisionResult | null;
+  /** set the feed handler after creation; flushes a queued result if present */
+  setOnFeed: (fn: (r: VisionResult) => void) => void;
 }
 
-const SYNTHETIC_SCENES: SyntheticScene[] = ['perfect', 'undersized', 'oversized', 'missing', 'irregular', 'spread'];
-
+// Good = phosphor green (accent). Defects = semantic red. Misalignment = amber.
+// Blue is reserved for the user chat, so it is not used on the overlay.
 const CLASS_COLORS: Record<string, string> = {
   good: '#2ee6a8',
-  'less-paste': '#ffb64d',
+  'less-paste': '#ff5f6d',
   missing: '#ff5f6d',
-  bridging: '#a78bfa',
-  misalignment: '#5aa9ff',
+  bridging: '#ff5f6d',
+  misalignment: '#ffb64d',
 };
 
 /**
@@ -37,7 +47,15 @@ export function createInspectionPanel(opts: {
   onAnalyze?: (r: VisionResult) => void;
   onFeed?: (r: VisionResult) => void;
 } = {}): InspectionPanelHandle {
-  const { onAnalyze = () => {}, onFeed = () => {} } = opts;
+  const { onAnalyze = () => {} } = opts;
+  // feeding is now automatic after analysis; keep the handler optional and
+  // queue the result if it is not set up yet
+  let onFeedHandler: ((r: VisionResult) => void) | null = opts.onFeed ?? null;
+  let pendingFeed: VisionResult | null = null;
+  const deliverFeed = (r: VisionResult) => {
+    if (onFeedHandler) onFeedHandler(r);
+    else pendingFeed = r;
+  };
   const body = el('div', 'panel-body');
   let lastResult: VisionResult | null = null;
   let lastCanvas: HTMLCanvasElement | null = null;
@@ -46,40 +64,32 @@ export function createInspectionPanel(opts: {
   let lastLabel = '';
   let lastBoard: BoardAnalysis | null = null;
   let lastGroundTruth: string | null = null;
-  let lastEngine: 'yolo' | 'classical' = 'classical';
-  let currentSource: 'board' | 'schematic' | 'upload' = 'board';
+  let lastEngine: 'yolo' | 'classical' | 'api' = 'classical';
+  let currentSource: 'board' | 'upload' = 'board';
+  // pipeline-API state
+  let lastAnalysis: AnalysisResult | null = null;
+  let lastLegs: LegResult[] = [];
+  let lastUploadFile: File | null = null;
+  let lastServerPath: string | null = null;
+  let lastScale = 1; // canvas pixels / original image pixels
+  let serverPaths = new Map<string, string>(); // original filename -> server path
+
+  // Fetch the server board list once so gallery boards can be analyzed by path.
+  getBoards()
+    .then((list) => {
+      serverPaths = new Map(list.map((b) => [b.filename, b.path]));
+    })
+    .catch(() => {
+      /* server offline - uploads still work, boards fall back to on-device */
+    });
 
   const registry = createRegistry();
 
-  // ---- Source tabs: dataset gallery + schematic demo ----
-  const sourceTabs = el('div', 'nav-tabs');
-  sourceTabs.style.marginBottom = '12px';
-  const boardTab = el('button', 'nav-tab active', 'REAL BOARDS') as HTMLButtonElement;
-  const synthTab = el('button', 'nav-tab', 'SCHEMATIC') as HTMLButtonElement;
-  boardTab.type = 'button';
-  synthTab.type = 'button';
-  boardTab.setAttribute('aria-selected', 'true');
-  synthTab.setAttribute('aria-selected', 'false');
-  sourceTabs.appendChild(boardTab);
-  sourceTabs.appendChild(synthTab);
-  body.appendChild(sourceTabs);
-
-  const galleryWrap = el('div', '');
-  const synthWrap = el('div', 'hidden', '');
-  body.appendChild(galleryWrap);
-  body.appendChild(synthWrap);
-
   // ---- Board gallery ----
   const galleryLabel = el('div', 'question-label', 'Select a real inspection board');
-  galleryWrap.appendChild(galleryLabel);
+  body.appendChild(galleryLabel);
   const gallery = el('div', 'scene-picker');
-  galleryWrap.appendChild(gallery);
-
-  // ---- Schematic scene picker ----
-  const synthLabel = el('div', 'question-label', 'Schematic dispensing demo (fallback)');
-  synthWrap.appendChild(synthLabel);
-  const synthPicker = el('div', 'scene-picker');
-  synthWrap.appendChild(synthPicker);
+  body.appendChild(gallery);
 
   // ---- Canvas frame ----
   const frame = el('div', 'canvas-frame');
@@ -90,6 +100,40 @@ export function createInspectionPanel(opts: {
   canvas.setAttribute('aria-label', 'Inspection image with computer-vision detection overlay');
   frame.appendChild(canvas);
   body.appendChild(frame);
+
+  // hover tooltip showing a leg's label + confidence
+  const tooltip = el('div', 'overlay-tooltip');
+  tooltip.style.cssText =
+    'position:absolute;pointer-events:none;padding:4px 6px;font:11px/1.4 var(--mono);' +
+    'background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-3);' +
+    'color:var(--ink);display:none;white-space:nowrap;z-index:5;';
+  frame.style.position = 'relative';
+  frame.appendChild(tooltip);
+  canvas.addEventListener('mousemove', (e) => {
+    if (!lastLegs.length) {
+      tooltip.style.display = 'none';
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const ix = (e.clientX - rect.left) / lastScale;
+    const iy = (e.clientY - rect.top) / lastScale;
+    const hit = lastLegs.find((l) => {
+      const [x1, y1, x2, y2] = l.bbox;
+      return ix >= x1 && ix <= x2 && iy >= y1 && iy <= y2;
+    });
+    if (hit) {
+      tooltip.textContent = `#${hit.leg_id} ${hit.label} ${hit.confidence.toFixed(0)}%${hit.flag ? ' ⚠' : ''}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = `${e.clientX - rect.left + 10}px`;
+      tooltip.style.top = `${e.clientY - rect.top + 10}px`;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+
   const legend = el('div', 'overlay-legend', '');
   legend.setAttribute('aria-live', 'polite');
   body.appendChild(legend);
@@ -104,11 +148,8 @@ export function createInspectionPanel(opts: {
   uploadLabel.style.cursor = 'pointer';
   uploadLabel.appendChild(fileInput);
   const analyzeBtn = button('ANALYZE BOARD', 'btn primary');
-  const feedBtn = button('FEED TO DIAGNOSIS', 'btn');
-  feedBtn.disabled = true;
   row.appendChild(uploadLabel);
   row.appendChild(analyzeBtn);
-  row.appendChild(feedBtn);
   body.appendChild(row);
 
   const qualityBox = el('div', '');
@@ -118,7 +159,6 @@ export function createInspectionPanel(opts: {
     lastBoard = null;
     lastPadRois = undefined;
     clear(qualityBox);
-    feedBtn.disabled = true;
   };
 
   const loadBoard = async (board: BoardImage) => {
@@ -136,9 +176,16 @@ export function createInspectionPanel(opts: {
       lastLabel = board.label;
       lastGroundTruth = board.class === 'unknown' ? null : board.class;
       currentSource = 'board';
+      // remember the scale + a server path so the API can analyze the original
+      lastScale = canvas.width / img.naturalWidth;
+      const original = (board.src.split('/').pop() ?? '').replace(/^pcb-aoi-/, '');
+      lastServerPath = serverPaths.get(original) ?? null;
+      lastUploadFile = null;
+      lastAnalysis = null;
+      lastLegs = [];
       clearBoard();
       const gtLabel = board.class === 'unknown' ? 'unknown' : BOARD_CLASS_LABELS[board.class];
-      legend.textContent = `${board.label} · ground truth: ${gtLabel} · run ANALYZE BOARD`;
+      legend.textContent = `${board.label} - ground truth: ${gtLabel} - run ANALYZE BOARD`;
     };
     img.src = board.src;
   };
@@ -159,50 +206,6 @@ export function createInspectionPanel(opts: {
     }
   });
 
-  // Schematic picker (kept for Live fallback + manual demo)
-  const genSchematic = (scene: SyntheticScene) => {
-    const g = generateSyntheticImage(scene);
-    canvas.width = g.canvas.width;
-    canvas.height = g.canvas.height;
-    canvas.getContext('2d')!.drawImage(g.canvas, 0, 0);
-    lastCanvas = canvas;
-    lastImageData = g.canvasToImageData();
-    lastPadRois = undefined;
-    lastLabel = `Schematic: ${scene.toUpperCase()}`;
-    lastGroundTruth = null;
-    currentSource = 'schematic';
-    clearBoard();
-    legend.textContent = `Schematic scene: ${scene.toUpperCase()} · generated on-device · run ANALYZE BOARD`;
-  };
-  for (const s of SYNTHETIC_SCENES) {
-    const chip = el('button', 'scene-chip', s.toUpperCase()) as HTMLButtonElement;
-    chip.type = 'button';
-    chip.onclick = () => {
-      synthPicker.querySelectorAll('.scene-chip').forEach((c) => c.classList.remove('selected'));
-      chip.classList.add('selected');
-      genSchematic(s);
-    };
-    synthPicker.appendChild(chip);
-  }
-
-  // Source tab switching
-  boardTab.onclick = () => {
-    boardTab.classList.add('active');
-    synthTab.classList.remove('active');
-    boardTab.setAttribute('aria-selected', 'true');
-    synthTab.setAttribute('aria-selected', 'false');
-    galleryWrap.classList.remove('hidden');
-    synthWrap.classList.add('hidden');
-  };
-  synthTab.onclick = () => {
-    synthTab.classList.add('active');
-    boardTab.classList.remove('active');
-    synthTab.setAttribute('aria-selected', 'true');
-    boardTab.setAttribute('aria-selected', 'false');
-    synthWrap.classList.remove('hidden');
-    galleryWrap.classList.add('hidden');
-  };
-
   // Upload handling
   const loadFile = (file: File) => {
     const reader = new FileReader();
@@ -220,8 +223,13 @@ export function createInspectionPanel(opts: {
         lastLabel = `Uploaded: ${file.name}`;
         lastGroundTruth = null;
         currentSource = 'upload';
+        lastScale = canvas.width / img.width;
+        lastServerPath = null;
+        lastUploadFile = file;
+        lastAnalysis = null;
+        lastLegs = [];
         clearBoard();
-        legend.textContent = `Uploaded ${file.name} · run ANALYZE BOARD`;
+        legend.textContent = `Uploaded ${file.name} - run ANALYZE BOARD`;
       };
       img.src = reader.result as string;
     };
@@ -234,7 +242,7 @@ export function createInspectionPanel(opts: {
 
   const run = async () => {
     if (!lastImageData) {
-      legend.textContent = 'No frame to analyze - pick a board, generate a schematic, or upload a photo first.';
+      legend.textContent = 'No frame to analyze - pick a board or upload a photo first.';
       return;
     }
 
@@ -242,16 +250,37 @@ export function createInspectionPanel(opts: {
     analyzeBtn.textContent = 'PROCESSING…';
     let board: BoardAnalysis;
     try {
-      // Schematic scenes always use the classical pipeline (YOLO is trained on
-      // real boards only); real gallery + uploads use YOLO when available.
-      const useYolo = currentSource !== 'schematic' && (await yoloAvailable());
-      lastEngine = useYolo ? 'yolo' : 'classical';
-      if (useYolo) {
-        legend.textContent = 'Running on-device YOLO detection…';
-        const detections = await detectBoard(lastImageData);
-        board = analyzeBoardFromDetections(detections, lastImageData.width, lastImageData.height);
-      } else {
-        board = analyzeBoard(lastImageData, lastPadRois);
+      // real boards + uploads go through the local pipeline API
+      try {
+        legend.textContent = 'Running pipeline API (YOLO + classifier)…';
+        let analysis: AnalysisResult;
+        if (currentSource === 'upload' && lastUploadFile) {
+          analysis = await analyzeBoardUpload(lastUploadFile);
+        } else if (lastServerPath) {
+          analysis = await apiAnalyzeBoard(lastServerPath);
+        } else {
+          // board not on the server - send the rendered frame as an upload
+          const blob = await canvasToBlob(canvas);
+          analysis = await analyzeBoardUpload(new File([blob], 'board.jpg', { type: 'image/jpeg' }));
+        }
+        lastAnalysis = analysis;
+        lastLegs = analysis.legs;
+        lastEngine = 'api';
+        board = analysisToBoard(analysis);
+      } catch (apiErr) {
+        // server unreachable - fall back to the existing on-device pipeline
+        console.warn('pipeline API unavailable, using on-device pipeline', apiErr);
+        const useYolo = await yoloAvailable();
+        lastEngine = useYolo ? 'yolo' : 'classical';
+        lastAnalysis = null;
+        lastLegs = [];
+        if (useYolo) {
+          legend.textContent = 'Server offline - running on-device YOLO detection…';
+          const detections = await detectBoard(lastImageData);
+          board = analyzeBoardFromDetections(detections, lastImageData.width, lastImageData.height);
+        } else {
+          board = analyzeBoard(lastImageData, lastPadRois);
+        }
       }
     } finally {
       analyzeBtn.disabled = false;
@@ -259,26 +288,72 @@ export function createInspectionPanel(opts: {
     }
 
     lastBoard = board;
-    drawBoardOverlay(canvas, board);
+    if (lastAnalysis) {
+      drawLegOverlay(canvas, lastLegs, lastScale);
+    } else {
+      drawBoardOverlay(canvas, board);
+    }
+
     const quality = boardQualityScore(board);
+    if (lastAnalysis && lastAnalysis.total_legs_detected > 0) {
+      quality.overall = Math.round(
+        (lastAnalysis.defect_summary.Good / lastAnalysis.total_legs_detected) * 100,
+      );
+    }
     const dominant = BOARD_CLASS_LABELS[board.dominantDefect];
     const counts = detectionCounts(board);
-    engineChip.textContent = `engine: ${lastEngine === 'yolo' ? 'YOLOv8s' : 'classical'}`;
+
+    // engine chip + tag
+    const engineText =
+      lastEngine === 'api' ? 'YOLOv8s + classifier' : lastEngine === 'yolo' ? 'YOLOv8s' : 'classical';
+    engineChip.textContent = `engine: ${engineText}`;
     engineChip.classList.toggle('stub', lastEngine === 'classical');
-    const engineTag = lastEngine === 'yolo' ? '<b style="color:var(--accent)">YOLOv8s</b>' : '<b style="color:var(--warn)">classical</b>';
+    const engineTag =
+      lastEngine === 'api'
+        ? '<b style="color:var(--accent)">YOLOv8s + MobileNetV2</b>'
+        : lastEngine === 'yolo'
+          ? '<b style="color:var(--accent)">YOLOv8s</b>'
+          : '<b style="color:var(--warn)">classical</b>';
+
+    // ground-truth comparison tag (real boards only)
     let gtTag = '';
     if (lastGroundTruth && currentSource === 'board') {
       const gt = BOARD_CLASS_LABELS[lastGroundTruth as BoardDefectClass] ?? lastGroundTruth;
       const match = lastGroundTruth === board.dominantDefect;
-      gtTag = ` · GT: <b>${gt}</b> <span style="color:var(--${match ? 'accent' : 'warn'})">${match ? '✓' : '✗'}</span>`;
+      gtTag = ` - GT: <b>${gt}</b> <span style="color:var(--${match ? 'accent' : 'warn'})">${match ? '✓' : '✗'}</span>`;
     }
-    legend.innerHTML = `${engineTag} · ${board.pads.length} detection(s) · ${dominant.toUpperCase()} · less-paste ${counts.lessPaste} / bridging ${counts.bridging}${gtTag}`;
 
     clear(qualityBox);
     const qh = el('div', 'q-hero');
     qh.appendChild(el('div', 'score', `${quality.overall}`));
-    qh.appendChild(el('div', 'score-label', `board quality / 100 · ${dominant}`));
+    qh.appendChild(el('div', 'score-label', `board quality / 100 - ${dominant}`));
     qualityBox.appendChild(qh);
+
+    // Component scores: the server pipeline derives them from the analysis
+    // result; the classical detector uses boardQualityScore() directly.
+    let qShape = quality.shape;
+    let qSize = quality.size;
+    let qPosition = quality.position;
+    let qRisk = quality.defectRisk;
+    if (lastAnalysis) {
+      const ds = lastAnalysis.defect_summary;
+      qShape = ds.Bridging > 0 ? 3 : 5;
+      qSize = ds['Less Paste'] > 0 ? 3 : 5;
+      qPosition = lastAnalysis.flagged_legs === 0 ? 5 : 4;
+      qRisk = Math.max(0, Math.min(5, Math.round(quality.overall / 20)));
+    }
+
+    if (lastAnalysis) {
+      const a = lastAnalysis;
+      const ds = a.defect_summary;
+      legend.innerHTML =
+        `${engineTag} - ${a.total_legs_detected} leg(s) - less-paste ${ds['Less Paste']} / bridging ${ds.Bridging} / good ${ds.Good} - ` +
+        `flagged ${a.flagged_legs}${a.flagged_legs ? ' ⚠' : ''}${gtTag}`;
+    } else {
+      legend.innerHTML = `${engineTag} - ${board.pads.length} detection(s) - ${dominant} - less-paste ${counts.lessPaste} / bridging ${counts.bridging}${gtTag}`;
+    }
+
+    // Always show the four component cards, whichever engine produced the result
     const grid = el('div', 'q-grid');
     const card = (label: string, val: number) => {
       const c = el('div', 'q-card');
@@ -287,10 +362,10 @@ export function createInspectionPanel(opts: {
       c.appendChild(el('div', 'qval', `${val} / 5`));
       grid.appendChild(c);
     };
-    card('Shape / fill', quality.shape);
-    card('Volume', quality.size);
-    card('Position', quality.position);
-    card('Defect risk', quality.defectRisk);
+    card('Shape / fill', qShape);
+    card('Volume', qSize);
+    card('Position', qPosition);
+    card('Defect risk', qRisk);
     qualityBox.appendChild(grid);
 
     lastResult = {
@@ -298,15 +373,13 @@ export function createInspectionPanel(opts: {
       imageUrl: canvas.toDataURL(),
       board,
       quality,
+      analysis: lastAnalysis ?? undefined,
     };
-    feedBtn.disabled = !board.defectDetected;
     onAnalyze?.(lastResult);
+    // automatically hand the result to the diagnosis chat
+    deliverFeed(lastResult);
   };
   analyzeBtn.onclick = run;
-
-  feedBtn.onclick = () => {
-    if (lastResult) onFeed(lastResult);
-  };
 
   const panelEl = el('section', 'panel');
   const head = el('div', 'panel-head');
@@ -314,13 +387,20 @@ export function createInspectionPanel(opts: {
   head.appendChild(el('span', 'title', 'Image Inspection'));
   const engineChip = el('span', 'live-badge', 'engine: -');
   head.appendChild(engineChip);
-  head.appendChild(el('span', 'hint', 'real board · on-device YOLO detection'));
   panelEl.appendChild(head);
   panelEl.appendChild(body);
 
   return {
     panel: panelEl,
     getResult: () => lastResult,
+    setOnFeed: (fn: (r: VisionResult) => void) => {
+      onFeedHandler = fn;
+      if (pendingFeed) {
+        const queued = pendingFeed;
+        pendingFeed = null;
+        fn(queued);
+      }
+    },
   };
 }
 
@@ -335,5 +415,87 @@ function drawBoardOverlay(canvas: HTMLCanvasElement, board: BoardAnalysis): void
     ctx.font = 'bold 10px monospace';
     const conf = pad.fillRatio > 0 && pad.fillRatio <= 1 ? ` ${(pad.fillRatio * 100).toFixed(0)}%` : '';
     ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase() + conf, x + 2, y - 4);
+  }
+}
+
+/** Promise wrapper around canvas.toBlob for the upload fallback path. */
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob returned null'))),
+      'image/jpeg',
+      0.92,
+    );
+  });
+}
+
+/**
+ * Adapt a pipeline-API AnalysisResult into the shared BoardAnalysis shape so
+ * the existing quality scoring, overlay legend and chat layer keep working.
+ */
+function analysisToBoard(a: AnalysisResult): BoardAnalysis {
+  const pads: PadResult[] = a.legs.map((leg, i) => {
+    const cls: PadResult['class'] =
+      leg.label === 'Good' ? 'good' : leg.label === 'Bridging' ? 'bridging' : 'less-paste';
+    const [x1, y1, x2, y2] = leg.bbox;
+    return {
+      index: i,
+      rect: { x: x1, y: y1, w: Math.max(1, x2 - x1), h: Math.max(1, y2 - y1) },
+      fillRatio: leg.confidence / 100,
+      centroidDx: 0,
+      centroidDy: 0,
+      bridged: cls === 'bridging',
+      class: cls,
+    };
+  });
+
+  const defectCounts: Record<BoardDefectClass, number> = {
+    good: a.defect_summary.Good,
+    'less-paste': a.defect_summary['Less Paste'],
+    missing: 0,
+    bridging: a.defect_summary.Bridging,
+    misalignment: 0,
+  };
+
+  let dominant: BoardDefectClass = 'good';
+  let domN = 0;
+  for (const k of ['less-paste', 'bridging'] as BoardDefectClass[]) {
+    if (defectCounts[k] > domN) {
+      domN = defectCounts[k];
+      dominant = k;
+    }
+  }
+
+  const goodRatio = a.total_legs_detected ? a.defect_summary.Good / a.total_legs_detected : 1;
+  return {
+    pads,
+    defectCounts,
+    dominantDefect: dominant,
+    // no verdict from the model - derive "defects present" from the counts
+    defectDetected: a.defect_summary['Less Paste'] + a.defect_summary.Bridging > 0,
+    boardQuality: Math.round(goodRatio * 100),
+  };
+}
+
+/**
+ * Draw per-leg boxes from the API result: green = Good, red = Less Paste /
+ * Bridging, with a label + confidence on each box. Coords are original image
+ * pixels, scaled to the (possibly smaller) canvas.
+ */
+function drawLegOverlay(canvas: HTMLCanvasElement, legs: LegResult[], scale: number): void {
+  const ctx = canvas.getContext('2d')!;
+  ctx.lineWidth = 2;
+  ctx.font = 'bold 10px monospace';
+  for (const leg of legs) {
+    const [x1, y1, x2, y2] = leg.bbox;
+    const x = x1 * scale;
+    const y = y1 * scale;
+    const w = (x2 - x1) * scale;
+    const h = (y2 - y1) * scale;
+    const color = leg.label === 'Good' ? CLASS_COLORS.good : CLASS_COLORS['less-paste'];
+    ctx.strokeStyle = color + 'cc';
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = color;
+    ctx.fillText(`${leg.label} ${leg.confidence.toFixed(0)}%`, x + 2, y - 4);
   }
 }

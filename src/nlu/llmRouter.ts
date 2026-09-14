@@ -30,6 +30,8 @@ export interface ChatContext {
   symptoms?: string[];
   emphasized?: string[];
   image?: { className: string; quality?: number };
+  /** compact summary of the pipeline analysis, when an image was analyzed */
+  analysis?: { verdict: string; lessPaste: number; bridging: number; good: number; flagged: number };
   diagnosis?: { defectName: string; confidence: number; topCause: string };
   material?: string;
 }

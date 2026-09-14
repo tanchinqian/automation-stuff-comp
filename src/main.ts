@@ -1,15 +1,13 @@
 import './style.css';
 import { el } from './ui/dom';
 import { renderTroubleshoot, switchTab } from './ui/troubleshoot';
-import { renderLive } from './ui/live';
 import { renderDatabase } from './ui/database';
 import { renderReportTab } from './ui/report';
 
 const TABS = [
-  { id: 'troubleshoot', label: '01 · WORKBENCH' },
-  { id: 'live', label: '02 · LIVE INSPECTION' },
-  { id: 'database', label: '03 · LEARNING DB' },
-  { id: 'report', label: '04 · REPORT' },
+  { id: 'troubleshoot', label: '01 WORKBENCH' },
+  { id: 'report', label: '02 REPORT' },
+  { id: 'database', label: '03 LEARNING DB' },
 ];
 
 const app = document.getElementById('app')!;
@@ -66,7 +64,6 @@ app.appendChild(panes);
 
 // Render each tab
 renderTroubleshoot(document.getElementById('tab-troubleshoot')!);
-renderLive(document.getElementById('tab-live')!);
 renderDatabase(document.getElementById('tab-database')!);
 renderReportTab(document.getElementById('tab-report')!);
 
@@ -74,18 +71,3 @@ renderReportTab(document.getElementById('tab-report')!);
 const footer = el('div', 'footer');
 
 app.appendChild(footer);
-
-// Boot NLU detection for the status chip
-import('./nlu/llmRouter').then(async ({ LlmRouter }) => {
-  const r = new LlmRouter();
-  const engine = await r.detect();
-  const label =
-    engine === 'gemini-nano'
-      ? 'GEMINI NANO'
-      : engine === 'transformers'
-        ? 'ON-DEVICE MODEL'
-        : 'EMBEDDED RULES';
-  const chip = document.getElementById('engine-chip')!;
-  chip.innerHTML = '<span class="led"></span><span class="mono">ENGINE: ' + label + '</span>';
-  chip.classList.add(engine === 'heuristic' ? 'warn' : 'online');
-});

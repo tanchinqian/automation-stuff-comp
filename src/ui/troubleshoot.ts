@@ -1,33 +1,29 @@
-import { BASE_QUESTIONS, FOLLOW_UPS, FOLLOW_UP_RULES, MATERIALS } from '../engine/knowledgeBase';
+import { MATERIALS } from '../engine/knowledgeBase';
 import { runDiagnosis } from '../engine/scorer';
 import { buildActionPlan } from '../engine/actions';
-import type { MaterialType, QuestionDef, SymptomId } from '../engine/types';
+import type { SymptomId } from '../engine/types';
 import { appState, addSymptoms, resetState } from './state';
 import { el, clear, button, panel } from './dom';
-import { LlmRouter, HeuristicNlu, type ChatContext } from '../nlu/llmRouter';
-import { saveCase, getAllCases, priorOverrides } from '../db/caseDB';
+import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
+import { getAllCases, priorOverrides, upsertCase } from '../db/caseDB';
 import { renderReportTab } from './report';
 import { createInspectionPanel, type VisionResult } from './vision';
 import { boardClassToSymptoms } from '../vision/qualityScore';
-import { template, acknowledgeTemplate, imageCrossTemplate } from './templates';
-
-interface PendingQuestion {
-  def: QuestionDef;
-  next: string | null;
-}
-
-type Phase = 'welcome' | 'intake' | 'awaiting-image' | 'diagnosed';
+import { template } from './templates';
+import {
+  BASE_URL,
+  chat,
+  fetchServerCasesAsIdbFormat,
+  getSimilarCases,
+  type AnalysisResult,
+  type ChatMessage,
+  type ChatPhase,
+  type ChatResponse,
+  type RuleEngineResult,
+  type SimilarCasesResult,
+} from '../api/pipeline';
 
 const llm = new LlmRouter();
-
-/** Which base questions are already answered by the current evidence. */
-const ANSWERED_BY_SYMPTOMS: Partial<Record<string, SymptomId[]>> = {
-  'q-material': [],
-  'q-amount': ['amount-too-small', 'amount-too-large', 'inconsistent-size', 'missing-occasionally', 'missing-location', 'spread-beyond', 'shape-irregular'],
-  'q-occurrence': ['occurrence-continuous', 'occurrence-occasional', 'occurrence-once'],
-  'q-recent-change': ['recent-change-material', 'recent-change-nozzle', 'recent-change-parameter'],
-  'q-location': ['single-location', 'multi-location'],
-};
 
 export function renderTroubleshoot(host: HTMLElement): void {
   clear(host);
@@ -39,13 +35,13 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const mainCol = el('div', 'main-col');
   layout.appendChild(mainCol);
 
-  const diagPanel = panel('Diagnosis', 'live analysis');
+  const diagPanel = panel('Diagnosis');
   const diagBody = diagPanel.querySelector('.panel-body')! as HTMLElement;
   mainCol.appendChild(diagPanel);
 
   const vision = createInspectionPanel({
     onAnalyze: () => {
-      aiSay('Frame analyzed - click <b>FEED TO DIAGNOSIS</b> on the left to use it as evidence.', true);
+      aiSay('Board analyzed - starting the diagnosis conversation.', true);
       updateEvidence();
     },
     onFeed: (r: VisionResult) => {
@@ -54,8 +50,8 @@ export function renderTroubleshoot(host: HTMLElement): void {
   });
   mainCol.insertBefore(vision.panel, diagPanel);
 
-  // ---- Sidebar: AI assistant chat ----
-  const chatPanel = panel('AI Assistant', 'intake + free-text NLU');
+  // ---- Sidebar: assistant chat ----
+  const chatPanel = panel('Assistant');
   chatPanel.classList.add('chat-sticky');
   const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
 
@@ -64,36 +60,38 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const chatLog = el('div', 'chat-log');
   chatLog.setAttribute('aria-live', 'polite');
-  const inputRow = el('div', 'freetext-row');
-  const input = el('input', 'freetext-input') as HTMLInputElement;
-  input.placeholder = 'Or describe the problem in your own words… (offline AI parses it)';
+  const inputRow = el('div', 'freetext-row chat-row');
+  const input = el('textarea', 'chat-input') as HTMLTextAreaElement;
+  input.rows = 1;
+  input.placeholder = 'Describe the problem in your own words…';
   input.setAttribute('aria-label', 'Describe the dispensing problem in your own words');
   input.setAttribute('autocomplete', 'off');
+  // auto-expand as the user types (capped by max-height in CSS)
+  const autoGrow = () => {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+    // only show a scrollbar once we hit the max height
+    input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
+  };
+  input.addEventListener('input', autoGrow);
   const sendBtn = button('ANALYZE', 'btn primary');
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
-  const nluNote = el('div', 'nlu-note', 'NLU: detecting local AI engine…');
-  nluNote.setAttribute('aria-live', 'polite');
   chatBody.appendChild(chatLog);
   chatBody.appendChild(inputRow);
-  chatBody.appendChild(nluNote);
   layout.appendChild(chatPanel);
 
-  // ---- Conversation state ----
-  let phase: Phase = 'welcome';
-  const queue: PendingQuestion[] = [];
-  let followUpsAsked = 0;
-  let questionCount = 0;
-
-  const isAnswered = (qid: string): boolean => {
-    if (qid === 'q-material') return !!appState.material;
-    const syms = ANSWERED_BY_SYMPTOMS[qid] ?? [];
-    return syms.some((s) => appState.symptoms.has(s));
-  };
+  // ---- Conversation state (Gemini-backed discovery) ----
+  let conversationHistory: ChatMessage[] = [];
+  let chatPhase: ChatPhase = 'discovery';
+  let lastAnalysis: AnalysisResult | null = null;
+  let lastRuleEngine: RuleEngineResult | null = null;
+  let lastSimilar: SimilarCasesResult | null = null;
+  let diagnosed = false;
 
   const aiSay = (text: string, html = false) => {
     const m = el('div', 'msg ai');
-    m.appendChild(el('div', 'avatar', 'AI'));
+    m.appendChild(el('div', 'avatar', 'DA'));
     const b = el('div', 'bubble');
     if (html) b.innerHTML = text;
     else b.textContent = text;
@@ -109,19 +107,95 @@ export function renderTroubleshoot(host: HTMLElement): void {
     chatLog.scrollTop = chatLog.scrollHeight;
   };
 
-  // ---- Natural-language replies: LLM when available, template fallback ----
-  const aiRespond = async (ctx: ChatContext, fallback: string) => {
+  // ---- Rule engine bridge: run the deterministic engine, build chat grounding ----
+  const computeRuleEngine = async () => {
+    // blend locally-saved cases with confirmed cases from the server case log
+    const [idbCases, serverCases] = await Promise.all([
+      getAllCases(),
+      fetchServerCasesAsIdbFormat(),
+    ]);
+    const priors = priorOverrides([...idbCases, ...serverCases]);
+    const report = runDiagnosis(
+      [...appState.symptoms],
+      appState.material ? MATERIALS[appState.material] : '',
+      priors,
+      appState.emphasized ? [...appState.emphasized] : undefined,
+    );
+    const actions = buildActionPlan(report.defect.causes.map((c) => c.causeId));
+    const rule: RuleEngineResult = {
+      defect_name: report.defect.defectName,
+      defect_confidence: report.defect.defectConfidence,
+      ranked_causes: report.defect.causes.slice(0, 5).map((c) => ({
+        cause: c.name,
+        score: c.score * 100,
+        reasons: c.reasons,
+      })),
+      action_plan: actions.map((a) => `${a.title}. ${a.detail}`),
+      reasoning: report.defect.reasoning,
+    };
+    return { report, actions, rule };
+  };
+
+  // Render the structured diagnosis panel (unchanged UI) when the engine fires.
+  const renderDiagnosisFor = (
+    report: ReturnType<typeof runDiagnosis>,
+    actions: ReturnType<typeof buildActionPlan>,
+  ) => {
+    appState.lastDiagnosis = report;
+    appState.lastActions = actions;
+    if (appState.lastImage?.quality) report.qualityScore = appState.lastImage.quality.overall;
+    renderDiagnosis(diagBody, report, actions);
+    diagnosed = true;
+    updateEvidence();
+    renderReportTab(document.getElementById('tab-report') as HTMLElement);
+  };
+
+  // ---- One Gemini chat turn (template fallback when the server is down) ----
+  const sendTurn = async (message: string, fallback: string, pushUser: boolean) => {
+    if (pushUser) conversationHistory.push({ role: 'user', content: message });
+
+    // refresh the rule-engine grounding from the current symptom evidence
+    let report: ReturnType<typeof runDiagnosis> | undefined;
+    let actions: ReturnType<typeof buildActionPlan> | undefined;
+    if (appState.symptoms.size > 0) {
+      const computed = await computeRuleEngine();
+      report = computed.report;
+      actions = computed.actions;
+      lastRuleEngine = computed.rule;
+    }
+
     const thinking = el('div', 'msg ai');
-    thinking.appendChild(el('div', 'avatar', 'AI'));
+    thinking.appendChild(el('div', 'avatar', 'DA'));
     thinking.appendChild(el('div', 'bubble loading', '…'));
     chatLog.appendChild(thinking);
     chatLog.scrollTop = chatLog.scrollHeight;
-    const text = await Promise.race([
-      llm.respond(ctx),
-      new Promise<string | null>((res) => setTimeout(() => res(null), 4000)),
-    ]);
+
+    let resp: ChatResponse | null = null;
+    try {
+      resp = await chat(message, conversationHistory, lastAnalysis, chatPhase, lastRuleEngine, lastSimilar);
+    } catch (err) {
+      console.warn('chat endpoint unavailable, using offline response', err);
+    }
     thinking.remove();
-    aiSay(text ?? fallback, true);
+
+    if (resp) {
+      aiSay(resp.reply, true);
+      conversationHistory.push({ role: 'model', content: resp.reply });
+      if (
+        resp.suggested_phase === 'discovery' ||
+        resp.suggested_phase === 'diagnosis' ||
+        resp.suggested_phase === 'followup'
+      ) {
+        chatPhase = resp.suggested_phase;
+      }
+      appState.lastEngineLabel = 'Gemini API';
+      if (resp.ready_for_diagnosis && report && actions && !diagnosed) {
+        renderDiagnosisFor(report, actions);
+      }
+    } else {
+      aiSay(fallback, true);
+      conversationHistory.push({ role: 'model', content: fallback });
+    }
   };
 
   // ---- Live evidence summary ----
@@ -146,120 +220,28 @@ export function renderTroubleshoot(host: HTMLElement): void {
   };
   updateEvidence();
 
-  // ---- Image gate (block until image or skip) ----
-  const showImageGate = () => {
-    phase = 'awaiting-image';
-    const m = el('div', 'msg ai');
-    m.appendChild(el('div', 'avatar', 'AI'));
-    const b = el('div', 'bubble');
-    const gate = el('div', 'gate-notice');
-    gate.appendChild(el('div', 'g-label', 'Action needed'));
-    gate.appendChild(
-      el('p', '', 'You have described the problem, but no inspection image yet. An image sharpens the diagnosis. Pick a board on the left, click ANALYZE BOARD, then FEED TO DIAGNOSIS. Or continue with text only.'),
-    );
-    const row = el('div', 'freetext-row');
-    row.style.marginTop = '8px';
-    row.appendChild(button('SKIP IMAGE', 'btn sm', async () => {
-      appState.imageSkipped = true;
-      userSay('Skip image - continue with text evidence');
-      row.remove();
-      await aiRespond({ intent: 'skip-ack' }, template('skip-ack'));
-      await diagnose();
-    }));
-    gate.appendChild(row);
-    b.appendChild(gate);
-    m.appendChild(b);
-    chatLog.appendChild(m);
-    chatLog.scrollTop = chatLog.scrollHeight;
-  };
-
-  // ---- Adaptive intake ----
-  const askQuestion = (q: QuestionDef) => {
-    questionCount++;
-    const block = el('div', 'question-block');
-    block.appendChild(el('div', 'question-label', `QUESTION ${questionCount}`));
-    block.appendChild(el('div', 'question-text', q.text));
-
-    if (q.intent === 'single' && q.options) {
-      const grid = el('div', 'opt-grid');
-      for (const opt of q.options) {
-        const chip = el('button', 'opt', opt.label) as HTMLButtonElement;
-        chip.type = 'button';
-        chip.onclick = async () => {
-          userSay(opt.label);
-          block.remove();
-          // material question sets material from the option id
-          if (q.id === 'q-material') appState.material = opt.id as MaterialType;
-          addSymptoms(opt.adds);
-          updateEvidence();
-          const labelList = opt.adds.map((s) => s.replace(/-/g, ' '));
-          await aiRespond({ intent: 'acknowledge', userText: opt.label, symptoms: labelList, material: appState.material ? MATERIALS[appState.material] : undefined }, acknowledgeTemplate({ intent: 'acknowledge', symptoms: labelList }));
-          const follow = FOLLOW_UP_RULES.find((f) => f.questionId === q.id && f.answerId === opt.id);
-          if (follow && followUpsAsked < 5) {
-            const fu = FOLLOW_UPS.find((f) => f.id === follow.nextQuestionId);
-            if (fu) {
-              followUpsAsked++;
-              queue.push({ def: fu, next: null });
-              aiSay(`<span style="color:var(--accent)">Follow-up:</span> ${fu.text}`, true);
-              askQuestion(fu);
-              return;
-            }
-          }
-          nextQuestion();
-        };
-        grid.appendChild(chip);
-      }
-      block.appendChild(grid);
-    }
-    chatLog.appendChild(block);
-    chatLog.scrollTop = chatLog.scrollHeight;
-  };
-
-  const nextQuestion = () => {
-    if (queue.length > 0) {
-      const pq = queue.shift()!;
-      askQuestion(pq.def);
-      return;
-    }
-    // pick the next unanswered base question
-    const next = BASE_QUESTIONS.find((q) => !isAnswered(q.id));
-    if (next) {
-      aiSay(next.text);
-      askQuestion(next);
-      return;
-    }
-    finishIntake();
-  };
-
   const runFromFreeText = async (text: string) => {
     userSay(text);
     sendBtn.disabled = true;
     sendBtn.textContent = 'PROCESSING…';
     try {
-      nluNote.innerHTML = 'NLU engine: parsing with <b>' + llm.engineLabel + '</b>…';
-      let parsed = await llm.parse(text);
+      // parse free text into symptom IDs for the deterministic rule engine
+      const parsed = await llm.parse(text);
       if (parsed.material) appState.material = parsed.material;
       addSymptoms(parsed.symptoms as SymptomId[]);
-      if (parsed.emphasis?.length) appState.emphasized = new Set(parsed.emphasis as SymptomId[]);
-      nluNote.innerHTML = `NLU engine: <b>${llm.engineLabel}</b> · ${parsed.summary}`;
-      if (parsed.symptoms.length === 0 && parsed.engine !== 'heuristic') {
+      if (parsed.symptoms.length === 0) {
         const fallback = await new HeuristicNlu().parse(text);
         addSymptoms(fallback.symptoms as SymptomId[]);
-        nluNote.innerHTML += ' · fallback rules applied';
       }
+      if (parsed.emphasis?.length) appState.emphasized = new Set(parsed.emphasis as SymptomId[]);
       updateEvidence();
-      const labelList = [...appState.symptoms].map((s) => s.replace(/-/g, ' '));
-      const emphasized = parsed.emphasis?.length ? parsed.emphasis.map((s) => s.replace(/-/g, ' ')) : undefined;
-      await aiRespond(
-        { intent: 'acknowledge', userText: text, symptoms: labelList, emphasized, material: appState.material ? MATERIALS[appState.material] : undefined },
-        `Understood - ${parsed.summary}${emphasized?.length ? ` I will weigh ${emphasized.join(', ')} more heavily.` : ''}`,
+
+      const emphasized = parsed.emphasis?.length ? parsed.emphasis.join(', ') : '';
+      await sendTurn(
+        text,
+        emphasized ? `Understood - I will weigh ${emphasized} more heavily.` : template('acknowledge'),
+        true,
       );
-      // continue asking remaining relevant questions, or finish if all answered
-      if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
-        finishIntake();
-      } else {
-        nextQuestion();
-      }
     } finally {
       sendBtn.disabled = false;
       sendBtn.textContent = 'ANALYZE';
@@ -270,53 +252,16 @@ export function renderTroubleshoot(host: HTMLElement): void {
     const t = input.value.trim();
     if (!t) return;
     input.value = '';
+    input.style.height = 'auto'; // collapse back to one row after submit
     runFromFreeText(t);
   };
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendBtn.click();
+    // Enter submits; Shift+Enter inserts a newline
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
   });
-
-  const finishIntake = async () => {
-    if (phase === 'diagnosed') return;
-    phase = 'intake';
-    updateEvidence();
-    if (appState.lastImage || appState.imageSkipped) {
-      aiSay('Analyzing your answers against the dispensing knowledge base…');
-      await diagnose();
-    } else {
-      showImageGate();
-    }
-  };
-
-  const diagnose = async () => {
-    const cases = await getAllCases();
-    const priors = priorOverrides(cases);
-    const report = runDiagnosis(
-      [...appState.symptoms],
-      appState.material ? MATERIALS[appState.material] : '',
-      priors,
-      appState.emphasized ? [...appState.emphasized] : undefined,
-    );
-    appState.lastDiagnosis = report;
-    appState.lastActions = buildActionPlan(report.defect.causes.map((c) => c.causeId));
-    if (appState.lastImage?.quality) {
-      report.qualityScore = appState.lastImage.quality.overall;
-    }
-    renderDiagnosis(diagBody, report, appState.lastActions);
-    phase = 'diagnosed';
-    updateEvidence();
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
-    const top = report.defect.causes[0];
-    await aiRespond(
-      {
-        intent: 'diagnosis-announce',
-        symptoms: report.activeSymptoms.map((s) => s.replace(/-/g, ' ')),
-        image: appState.lastImage ? { className: appState.lastImage.board?.dominantDefect ?? 'board', quality: appState.lastImage.quality?.overall } : undefined,
-        diagnosis: { defectName: report.defect.defectName, confidence: report.defect.defectConfidence, topCause: top?.name ?? 'unknown' },
-      },
-      `Diagnosis complete. Identified <b>${report.defect.defectName}</b> with ${(report.defect.defectConfidence * 100).toFixed(0)}% confidence. <br><span style="color:var(--ink-dim)">${report.defect.reasoning}</span>`,
-    );
-  };
 
   const feedVision = async (r: VisionResult) => {
     if (!r.board) return;
@@ -327,45 +272,53 @@ export function renderTroubleshoot(host: HTMLElement): void {
       board: r.board,
       quality: r.quality,
       imageUrl: r.imageUrl,
+      analysis: r.analysis,
     };
     updateEvidence();
-    const names = syms.map((s) => s.replace(/-/g, ' '));
-    const priorTextSyms = [...appState.symptoms].filter((s) => !syms.includes(s)).map((s) => s.replace(/-/g, ' '));
-    userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
-    const ctx: ChatContext = {
-      intent: 'image-cross-ref',
-      symptoms: [...new Set([...priorTextSyms, ...names])],
-      image: { className: r.board.dominantDefect, quality: r.quality?.overall },
-      material: appState.material ? MATERIALS[appState.material] : undefined,
-    };
-    if (phase === 'diagnosed') {
-      await aiRespond(ctx, imageCrossTemplate(ctx));
-      await diagnose();
-    } else if (phase === 'awaiting-image') {
-      await aiRespond(ctx, imageCrossTemplate(ctx));
-      await diagnose();
-    } else {
-      await aiRespond(ctx, imageCrossTemplate(ctx));
-      if (BASE_QUESTIONS.every((q) => isAnswered(q.id))) {
-        finishIntake();
+
+    // a new board starts a fresh consultation
+    conversationHistory = [];
+    chatPhase = 'discovery';
+    diagnosed = false;
+    lastAnalysis = r.analysis ?? null;
+    lastRuleEngine = null;
+    lastSimilar = null;
+    appState.lastSimilarCases = undefined;
+    appState.lastConfirmedCause = undefined;
+    appState.fixNote = undefined;
+    appState.caseRecordId = undefined;
+    appState.caseId = undefined;
+
+    // pull similar historical cases using the vision defect type
+    if (r.analysis) {
+      const ds = r.analysis.defect_summary;
+      const defectType = ds['Less Paste'] > 0 ? 'Less Paste' : ds.Bridging > 0 ? 'Bridging' : null;
+      if (defectType) {
+        try {
+          lastSimilar = await getSimilarCases(defectType);
+        } catch {
+          lastSimilar = null;
+        }
       }
     }
+
+    userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
+    // bring the diagnosis conversation into view automatically
+    switchTab('troubleshoot');
+    chatPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // kick off the Gemini consultation (not counted as an engineer turn)
+    await sendTurn(
+      'The vision system just analyzed a board and the result is in your context. Begin the consultation and ask your first question.',
+      template('image-cross-ref'),
+      false,
+    );
   };
 
   renderDiagnosis(diagBody, undefined, undefined);
-  setTimeout(async () => {
-    await aiRespond({ intent: 'welcome' }, template('welcome'));
-    phase = 'intake';
-    nextQuestion();
-  }, 150);
-
-  // Boot NLU detection
-  llm.detect().then((engine) => {
-    const label = engine === 'gemini-nano' ? 'Chrome built-in Gemini Nano' : engine === 'transformers' ? 'On-device model (transformers.js)' : 'Embedded rules engine';
-    appState.lastEngineLabel = label;
-    nluNote.innerHTML = `NLU engine: <b>${label}</b> · <span style="color:var(--ink-faint)">fully offline</span>`;
-  });
+  appState.lastEngineLabel = 'Gemini API';
+  aiSay(template('welcome'), true);
 }
+
 
 export function renderDiagnosis(
   body: HTMLElement,
@@ -376,28 +329,67 @@ export function renderDiagnosis(
   if (!report || !actions) {
     body.appendChild(el('div', 'empty-state', ''));
     const e = body.lastChild as HTMLElement;
-    e.innerHTML = '<div class="big">◆-◆</div><div>Awaiting operator intake</div><div style="margin-top:6px;font-size:12px">Answer the AI assistant questions or run an image inspection on the left to start a diagnosis.</div>';
+    e.innerHTML = '<div class="big">◆-◆</div><div>Select a board to begin inspection</div>';
     return;
   }
 
   const d = report.defect;
+  const analysis = appState.lastImage?.analysis;
+
+  // stable id for this diagnosis session so SAVE CASE and the ✓ button update
+  // ONE case record (same case number) instead of appending new ones
+  const sessionCaseId = (): string => {
+    if (!appState.caseId) {
+      const raw = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      appState.caseId = raw.replace(/-/g, '').slice(0, 12);
+    }
+    return appState.caseId;
+  };
+
+  // ---- Vision evidence strip (only when a board analysis exists) ----
+  if (analysis) {
+    const ds = analysis.defect_summary;
+    const total = analysis.total_legs_detected;
+    const quality = total
+      ? Math.round((ds.Good / total) * 100)
+      : appState.lastImage?.quality?.overall ?? 0;
+
+    const strip = el('div', 'vision-strip');
+    const item = (label: string, value: string, valueCls = '') => {
+      const cell = el('div', 'stat-item');
+      cell.appendChild(el('div', 'stat-label', label));
+      cell.appendChild(el('div', valueCls ? `stat-value ${valueCls}` : 'stat-value', value));
+      strip.appendChild(cell);
+    };
+    const isPass = analysis.board_verdict === 'PASS';
+    item('Board verdict', analysis.board_verdict, isPass ? 'verdict-pass' : 'verdict-fail');
+    item('Less paste', `${ds['Less Paste']} legs`);
+    item('Bridging', `${ds.Bridging} legs`);
+    item('Good', `${ds.Good} legs`);
+    item('Quality score', `${quality} / 100`);
+    body.appendChild(strip);
+  }
 
   const hero = el('div', 'diag-hero');
   hero.appendChild(el('div', 'kicker', 'Identified dispensing defect'));
-  hero.appendChild(el('h3', '', d.defectName));
+  hero.appendChild(el('h2', '', d.defectName));
   hero.appendChild(el('p', '', d.defectDescription));
   const conf = el('div', 'confidence-row');
-  conf.appendChild(el('span', 'confidence-label', 'DEFECT CONFIDENCE'));
+  conf.appendChild(el('span', 'confidence-label', 'Defect confidence'));
   conf.appendChild(el('span', 'confidence-value', `${(d.defectConfidence * 100).toFixed(0)}%`));
   hero.appendChild(conf);
   body.appendChild(hero);
 
-  const reason = el('div', 'reasoning');
+  const reason = el('div', 'reasoning diag-section');
   reason.appendChild(el('div', 'rlabel', 'Why this ranking'));
   reason.appendChild(el('p', '', d.reasoning));
   body.appendChild(reason);
 
-  body.appendChild(el('div', 'question-label', 'Possible causes · likelihood'));
+  // ---- Ranked causes ----
+  const causesSection = el('div', 'diag-section');
+  causesSection.appendChild(el('div', 'question-label', 'Possible causes'));
   for (const c of d.causes.slice(0, 5)) {
     const row = el('div', 'bar-row');
     const nameCell = el('div', 'name');
@@ -412,28 +404,62 @@ export function renderDiagnosis(
     track.appendChild(fill);
     row.appendChild(track);
     row.appendChild(el('div', 'pct', `${(c.score * 100).toFixed(0)}%`));
-    body.appendChild(row);
+    causesSection.appendChild(row);
+  }
+  body.appendChild(causesSection);
+
+  // ---- Similar historical cases (async, non-blocking) ----
+  const defectType = analysis
+    ? analysis.defect_summary['Less Paste'] > 0
+      ? 'Less Paste'
+      : analysis.defect_summary.Bridging > 0
+        ? 'Bridging'
+        : null
+    : null;
+
+  let scBlock: HTMLElement | null = null;
+  let scDivider: HTMLElement | null = null;
+  if (defectType) {
+    scDivider = el('div', 'section-divider');
+    body.appendChild(scDivider);
+    scBlock = el('div', 'similar-cases');
+    body.appendChild(scBlock);
+
+    // insert placeholder already done; fetch in the background with a 1s cap
+    Promise.race([
+      getSimilarCases(defectType),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('similar-cases timeout')), 1000),
+      ),
+    ])
+      .then((sc) => {
+        // remember the historical data for the PDF report
+        appState.lastSimilarCases = {
+          total: sc.total_cases,
+          most_common_cause: sc.most_common_cause,
+          message: sc.message,
+          defect_type: sc.defect_type,
+        };
+        if (!scBlock || !scBlock.isConnected) return;
+        if (!sc.total_cases) {
+          scBlock.remove();
+          scDivider?.remove();
+          return;
+        }
+        scBlock.appendChild(el('div', 'sc-label', 'Historical cases'));
+        scBlock.appendChild(el('div', 'sc-text', sc.message));
+      })
+      .catch(() => {
+        scBlock?.remove();
+        scDivider?.remove();
+      });
   }
 
-  const treeLabel = el('div', 'question-label');
-  treeLabel.style.marginTop = '16px';
-  treeLabel.textContent = 'Cause tree';
-  body.appendChild(treeLabel);
-  const tree = el('div', 'cause-tree');
-  for (const c of d.causes.slice(0, 4)) {
-    const node = el('div', 'tree-node');
-    node.appendChild(el('span', 'dot'));
-    node.appendChild(el('span', '', c.name));
-    node.appendChild(el('span', 'cat', c.category));
-    node.appendChild(el('span', 'val', `${(c.score * 100).toFixed(0)}%`));
-    tree.appendChild(node);
-  }
-  body.appendChild(tree);
+  body.appendChild(el('div', 'section-divider'));
 
-  const actionLabel = el('div', 'question-label');
-  actionLabel.style.marginTop = '16px';
-  actionLabel.textContent = 'Recommended troubleshooting sequence';
-  body.appendChild(actionLabel);
+  // ---- Action plan ----
+  const actionSection = el('div', 'diag-section');
+  actionSection.appendChild(el('div', 'question-label', 'Recommended troubleshooting sequence'));
   const actionList = el('div', 'action-list');
   for (const a of actions) {
     const step = el('div', 'action-step');
@@ -444,52 +470,111 @@ export function renderDiagnosis(
     step.appendChild(txt);
     actionList.appendChild(step);
   }
-  body.appendChild(actionList);
+  actionSection.appendChild(actionList);
+  body.appendChild(actionSection);
 
-  const fb = el('div', 'feedback');
-  fb.appendChild(el('div', 'flabel', 'Engineer feedback - what actually fixed it? (feeds the learning database)'));
-  const chips = el('div', 'chips');
+  body.appendChild(el('div', 'section-divider'));
+
+  // ---- Engineer feedback (stays interactive after saving) ----
+  const fb = el('div', 'feedback diag-section');
+  fb.appendChild(el('div', 'flabel', 'What actually fixed it? (feeds learning database)'));
+  fb.appendChild(el('div', 'feedback-help', 'Pick the cause that resolved it, or type what fixed it. Optional.'));
+
+  const fixInput = el('input', 'freetext-input') as HTMLInputElement;
+  fixInput.placeholder = 'What actually fixed it? (optional)';
+  fixInput.setAttribute('aria-label', 'What actually fixed it');
+  fixInput.value = appState.fixNote ?? '';
+  fixInput.addEventListener('input', () => {
+    appState.fixNote = fixInput.value.trim() || undefined;
+  });
+  fb.appendChild(fixInput);
+
   const causeOptions = d.causes.slice(0, 5);
-  const chooseCause = async (causeId: string) => {
-    const cases = await getAllCases();
-    const id = await saveCase({
+  const chips = el('div', 'chips');
+  const status = el('div', 'nlu-note', '');
+  status.setAttribute('aria-live', 'polite');
+  let chosenCauseId: string | null = null;
+
+  // one upsert path for both the ✓ chips and SAVE CASE -> same case number
+  const persistCase = async (): Promise<number> => {
+    const id = await upsertCase({
+      id: appState.caseRecordId,
       timestamp: Date.now(),
       material: appState.material ?? '',
       defectId: d.defectId,
       symptoms: [...appState.symptoms],
       topCause: d.causes[0].causeId,
-      resolvedCause: causeId as never,
+      resolvedCause: (chosenCauseId ?? undefined) as never,
+      rankedCauses: d.causes.map((c) => ({ causeId: c.causeId, score: c.score })),
+      actionPlan: actions.map((a) => a.title),
+      notes: appState.fixNote,
     });
-    clear(chips);
-    const done = el('div', 'nlu-note');
-    done.innerHTML = `<b style="color:var(--accent)">✓ Case #${id} saved.</b> Knowledge-base priors updated from ${cases.length} historical cases.`;
-    chips.appendChild(done);
+    appState.caseRecordId = id;
+
+    const chosenName = chosenCauseId
+      ? d.causes.find((c) => c.causeId === chosenCauseId)?.name ?? chosenCauseId
+      : null;
+    fetch(`${BASE_URL}/cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_path: appState.lastImage?.analysis?.image_path ?? 'unknown',
+        analysis_result: appState.lastImage?.analysis ?? {},
+        ranked_causes: d.causes.map((c) => ({
+          cause: c.causeId,
+          score: c.score,
+          reasons: c.reasons,
+        })),
+        action_plan: actions.map((a) => a.title),
+        case_id: sessionCaseId(),
+        engineer_feedback: {
+          actual_cause: chosenName ?? appState.fixNote ?? null,
+          confirmed_defects: chosenName ? [d.defectId] : [],
+          notes: appState.fixNote ?? (chosenName ? 'Confirmed via engineer feedback button' : 'Saved without confirmation'),
+        },
+      }),
+    }).catch((err) => console.warn('case sync to server failed', err));
+
     renderReportTab(document.getElementById('tab-report') as HTMLElement);
+    return id;
+  };
+
+  const chooseCause = async (causeId: string) => {
+    try {
+      chosenCauseId = causeId;
+      appState.lastConfirmedCause = d.causes.find((c) => c.causeId === causeId)?.name ?? causeId;
+      const cases = await getAllCases();
+      const id = await persistCase();
+      status.innerHTML = `<b style="color:var(--accent)">✓ Case #${id} saved.</b> Confirmed: ${appState.lastConfirmedCause}. Priors updated from ${cases.length} historical cases.`;
+    } catch (err) {
+      console.error('chooseCause failed', err);
+      status.textContent = 'Could not save the case. See console for details.';
+    }
   };
   for (const c of causeOptions) {
     const b = button(`✓ ${c.name}`, 'btn sm ghost', () => chooseCause(c.causeId));
     chips.appendChild(b);
   }
   fb.appendChild(chips);
+  fb.appendChild(status);
   body.appendChild(fb);
 
   const row = el('div', 'freetext-row');
-  const saveBtn = button('SAVE CASE', 'btn', async () => {
-    const id = await saveCase({
-      timestamp: Date.now(),
-      material: appState.material ?? '',
-      defectId: d.defectId,
-      symptoms: [...appState.symptoms],
-      topCause: d.causes[0].causeId,
-    });
-    saveBtn.textContent = `CASE #${id} SAVED ✓`;
-    saveBtn.disabled = true;
+  const saveBtn = button('Save to Case Log', 'btn', async () => {
+    try {
+      const id = await persistCase();
+      saveBtn.textContent = `Case #${id} saved`;
+      // stays enabled: saving again updates the SAME case (upsert)
+    } catch (err) {
+      console.error('Save to Case Log failed', err);
+      saveBtn.textContent = 'Save failed';
+    }
   });
-  const reportBtn = button('PDF REPORT', 'btn primary', () => {
+  const reportBtn = button('Open Report', 'btn primary', () => {
     renderReportTab(document.getElementById('tab-report') as HTMLElement);
     switchTab('report');
   });
-  const newSessionBtn = button('NEW SESSION', 'btn ghost', () => {
+  const newSessionBtn = button('Start New Session', 'btn ghost', () => {
     const host = document.getElementById('tab-troubleshoot');
     if (host) renderTroubleshoot(host);
   });
