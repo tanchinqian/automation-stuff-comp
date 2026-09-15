@@ -14,6 +14,7 @@ import {
   BASE_URL,
   chat,
   fetchServerCasesAsIdbFormat,
+  getMatchingCases,
   getSimilarCases,
   type AnalysisResult,
   type ChatMessage,
@@ -22,8 +23,352 @@ import {
   type RuleEngineResult,
   type SimilarCasesResult,
 } from '../api/pipeline';
+import { renderCaseCardDetail, unifiedFromServerCases, type UnifiedCase } from './database';
 
 const llm = new LlmRouter();
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Create a namespaced SVG element with attributes (there is no SVG helper in dom.ts). */
+function svgEl<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string | number> = {},
+): SVGElementTagNameMap[K] {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  return node;
+}
+
+/** One draggable surrounding node in the radial historical-case graph. */
+interface NodeView {
+  case: UnifiedCase;
+  group: SVGGElement;
+  circle: SVGCircleElement;
+  label: SVGTextElement;
+  line: SVGLineElement;
+  slot: number;
+  baseR: number;
+  x: number;
+  y: number;
+  r: number;
+  raf: number | null;
+}
+
+const SNAP_MS = 170;
+
+/** cubic-bezier(0.16, 1, 0.3, 1) - the app's documented ease-standard curve. */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
+  const ax = 3 * x1 - 3 * x2 + 1;
+  const bx = 3 * x2 - 6 * x1;
+  const cx = 3 * x1;
+  const ay = 3 * y1 - 3 * y2 + 1;
+  const by = 3 * y2 - 6 * y1;
+  const cy = 3 * y1;
+  const sampleX = (t: number): number => ((ax * t + bx) * t + cx) * t;
+  const sampleY = (t: number): number => ((ay * t + by) * t + cy) * t;
+  const sampleDX = (t: number): number => (3 * ax * t + 2 * bx) * t + cx;
+  return (x: number): number => {
+    let t = x;
+    for (let i = 0; i < 8; i++) {
+      const err = sampleX(t) - x;
+      if (Math.abs(err) < 1e-4) break;
+      const d = sampleDX(t);
+      if (Math.abs(d) < 1e-6) break;
+      t -= err / d;
+    }
+    return sampleY(t);
+  };
+}
+const snapEase = cubicBezier(0.16, 1, 0.3, 1);
+
+/**
+ * Inline radial graph: the current diagnosis at the centre, one node per
+ * historical case returned by GET /cases/matching, arranged evenly on a
+ * circle. Nodes whose confirmed cause matches the current top cause are
+ * accent-filled; clicking one opens the shared case-detail panel; dragging
+ * one reorders the circle (snapping to the nearest fixed slot, swapping with
+ * whichever node occupies it).
+ */
+function renderHistoricalGraph(
+  host: HTMLElement,
+  defectType: string,
+  topCause: string | null,
+  expected: number,
+): void {
+  const count = Math.max(expected, 1);
+  const radius = count <= 8 ? 120 : count <= 14 ? 145 : 165;
+  const centerR = 11;
+  const pad = 44;
+  const size = 2 * (radius + 10 + pad);
+  const cx = size / 2;
+  const cy = size / 2;
+
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${size} ${size}`,
+    class: 'rc-svg',
+    role: 'img',
+    'aria-label': `Historical cases graph for ${defectType}`,
+  });
+  host.appendChild(svg);
+
+  // soft, low-opacity accent glow used to "lift" the node being dragged
+  const defs = svgEl('defs');
+  const glow = svgEl('filter', {
+    id: 'rc-drag-glow', x: '-60%', y: '-60%', width: '220%', height: '220%',
+  });
+  glow.appendChild(svgEl('feDropShadow', {
+    dx: 0, dy: 0, stdDeviation: 3, 'flood-color': '#2ee6a8', 'flood-opacity': 0.45,
+  }));
+  defs.appendChild(glow);
+  svg.appendChild(defs);
+
+  // centre = current case; pulses (existing .loading animation) while loading
+  const center = svgEl('g', { class: 'rc-center loading' });
+  center.appendChild(svgEl('circle', { cx, cy, r: centerR, class: 'rc-node-current' }));
+  const centerLabel = svgEl('text', {
+    x: cx, y: cy + centerR + 15, class: 'rc-nodelabel rc-current-label', 'text-anchor': 'middle',
+  });
+  centerLabel.textContent = 'Current';
+  center.appendChild(centerLabel);
+  svg.appendChild(center);
+
+  const tip = el('div', 'rc-tip');
+  host.appendChild(tip);
+  const pop = el('div', 'rc-pop');
+  host.appendChild(pop);
+
+  const onDocClick = (e: MouseEvent) => {
+    if (!pop.contains(e.target as Node)) closePop();
+  };
+  function closePop(): void {
+    pop.classList.remove('show');
+    document.removeEventListener('click', onDocClick);
+  }
+
+  const showTip = (ev: MouseEvent, text: string) => {
+    const r = (ev.currentTarget as SVGGElement).getBoundingClientRect();
+    const hr = host.getBoundingClientRect();
+    tip.textContent = text;
+    tip.style.left = `${r.left - hr.left + r.width / 2}px`;
+    tip.style.top = `${r.top - hr.top}px`;
+    tip.classList.add('show');
+  };
+  const hideTip = () => tip.classList.remove('show');
+
+  const openPop = (group: SVGGElement, record: UnifiedCase) => {
+    clear(pop);
+    pop.appendChild(renderCaseCardDetail(record, {
+      matchedBecause: `Matched because: same defect type (${defectType})`,
+    }));
+    const close = button('×', 'rc-close', () => closePop());
+    close.setAttribute('aria-label', 'Close case detail');
+    pop.appendChild(close);
+
+    const r = group.getBoundingClientRect();
+    const hr = host.getBoundingClientRect();
+    pop.style.left = `${r.left - hr.left + r.width / 2}px`;
+    pop.style.top = `${r.top - hr.top + r.height / 2}px`;
+    pop.classList.add('show');
+    setTimeout(() => document.addEventListener('click', onDocClick), 0);
+  };
+
+  // ---- Drag-to-reorder state + geometry helpers ----
+  const nodes: NodeView[] = [];
+  const slotPos: { x: number; y: number }[] = [];
+  let drag: {
+    nv: NodeView;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startTime: number;
+  } | null = null;
+
+  // write the current (x, y, r) of a node to its circle, label and edge
+  const applyNode = (nv: NodeView): void => {
+    nv.circle.setAttribute('cx', String(nv.x));
+    nv.circle.setAttribute('cy', String(nv.y));
+    nv.circle.setAttribute('r', String(nv.r));
+    nv.label.setAttribute('x', String(nv.x));
+    nv.label.setAttribute('y', String(nv.y + nv.r + 11));
+    nv.line.setAttribute('x2', String(nv.x));
+    nv.line.setAttribute('y2', String(nv.y));
+  };
+
+  // ease the node (circle + label + edge, together) to a target position
+  const tweenPos = (nv: NodeView, tx: number, ty: number, tr: number, dur: number): void => {
+    if (nv.raf) cancelAnimationFrame(nv.raf);
+    const sx = nv.x; const sy = nv.y; const sr = nv.r;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min((now - start) / dur, 1);
+      const e = snapEase(t);
+      nv.x = sx + (tx - sx) * e;
+      nv.y = sy + (ty - sy) * e;
+      nv.r = sr + (tr - sr) * e;
+      applyNode(nv);
+      nv.raf = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    nv.raf = requestAnimationFrame(step);
+  };
+
+  // nearest fixed angular slot to an angle (slots are evenly spaced)
+  const nearestSlot = (ang: number): number => {
+    let best = 0;
+    let bestDiff = Infinity;
+    for (let i = 0; i < slotPos.length; i++) {
+      const a = (Math.PI * 2 * i) / slotPos.length - Math.PI / 2;
+      let d = ang - a;
+      d = Math.atan2(Math.sin(d), Math.cos(d)); // normalise to [-pi, pi]
+      const ad = Math.abs(d);
+      if (ad < bestDiff) { bestDiff = ad; best = i; }
+    }
+    return best;
+  };
+
+  // client (screen) coords -> SVG viewBox user units
+  const toSvg = (clientX: number, clientY: number): { x: number; y: number } => {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: clientX, y: clientY };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  };
+
+  const finishDrag = (
+    group: SVGGElement,
+    nv: NodeView,
+    clientX: number,
+    clientY: number,
+    pointerId: number,
+    allowClick: boolean,
+  ): void => {
+    const dt = performance.now() - (drag?.startTime ?? performance.now());
+    const dx = clientX - (drag?.startX ?? clientX);
+    const dy = clientY - (drag?.startY ?? clientY);
+    try { group.releasePointerCapture(pointerId); } catch { /* capture already gone */ }
+    group.classList.remove('dragging');
+    drag = null;
+
+    // a quick, near-stationary press is a click, not a drag
+    if (allowClick && Math.hypot(dx, dy) < 4 && dt < 200) {
+      openPop(group, nv.case);
+      return;
+    }
+
+    const ang = Math.atan2(nv.y - cy, nv.x - cx);
+    const target = nearestSlot(ang);
+    if (target === nv.slot) {
+      // dropped near its own slot - just settle back
+      tweenPos(nv, slotPos[nv.slot].x, slotPos[nv.slot].y, nv.baseR, SNAP_MS);
+      return;
+    }
+    // swap with whichever node currently occupies the target slot
+    const other = nodes.find((n) => n !== nv && n.slot === target);
+    if (other) {
+      other.slot = nv.slot;
+      tweenPos(other, slotPos[other.slot].x, slotPos[other.slot].y, other.baseR, SNAP_MS);
+    }
+    nv.slot = target;
+    tweenPos(nv, slotPos[target].x, slotPos[target].y, nv.baseR, SNAP_MS);
+  };
+
+  void (async () => {
+    let cases: UnifiedCase[];
+    try {
+      const res = await getMatchingCases(defectType);
+      cases = unifiedFromServerCases(res.cases);
+    } catch {
+      host.remove(); // endpoint unreachable - keep the text summary only
+      return;
+    }
+    if (!host.isConnected || cases.length === 0) {
+      host.remove();
+      return;
+    }
+    center.classList.remove('loading');
+
+    // fixed, evenly-spaced angular slots (positions never move; nodes swap)
+    for (let i = 0; i < cases.length; i++) {
+      const a = (Math.PI * 2 * i) / cases.length - Math.PI / 2;
+      slotPos.push({ x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) });
+    }
+
+    const times = cases.map((c) => c.timestamp).filter((t) => t > 0);
+    const maxTs = times.length ? Math.max(...times) : 0;
+    const minTs = times.length ? Math.min(...times) : 0;
+    const span = Math.max(maxTs - minTs, 1);
+    const matchKey = (topCause ?? '').toLowerCase();
+
+    cases.forEach((c, i) => {
+      const pos = slotPos[i];
+      const recency = times.length ? (c.timestamp - minTs) / span : 0.5;
+      const baseR = 5.5 + recency * 2.5;
+      const isMatch = !!c.resolvedCause && c.resolvedCause.toLowerCase() === matchKey;
+      const causeName = c.resolvedCause ?? 'No confirmed cause';
+
+      const line = svgEl('line', { x1: cx, y1: cy, x2: pos.x, y2: pos.y, class: 'rc-edge' });
+      svg.appendChild(line);
+
+      const group = svgEl('g', {
+        class: 'rc-nodegroup',
+        tabindex: 0,
+        role: 'button',
+        'aria-label': `${c.idLabel}: ${causeName}`,
+      });
+      const circle = svgEl('circle', { cx: pos.x, cy: pos.y, r: baseR, class: isMatch ? 'rc-node match' : 'rc-node' });
+      group.appendChild(circle);
+      const idLabel = svgEl('text', { x: pos.x, y: pos.y + baseR + 11, class: 'rc-nodelabel', 'text-anchor': 'middle' });
+      idLabel.textContent = c.idLabel;
+      group.appendChild(idLabel);
+
+      const nv: NodeView = {
+        case: c, group, circle, label: idLabel, line,
+        slot: i, baseR, x: pos.x, y: pos.y, r: baseR, raf: null,
+      };
+      nodes.push(nv);
+
+      group.addEventListener('mouseenter', (ev) => showTip(ev, `${c.idLabel} · ${causeName}`));
+      group.addEventListener('mouseleave', hideTip);
+      group.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openPop(group, c); }
+      });
+      // click-to-open is resolved in pointerup (drag vs click); this only keeps
+      // the synthetic click from reaching the outside-click popover dismisser
+      group.addEventListener('click', (ev) => ev.stopPropagation());
+
+      group.addEventListener('pointerdown', (ev) => {
+        if (drag) return;
+        hideTip();
+        if (nv.raf) { cancelAnimationFrame(nv.raf); nv.raf = null; }
+        svg.appendChild(group); // paint order: raise above the other nodes
+        try { group.setPointerCapture(ev.pointerId); } catch { /* ignore */ }
+        drag = { nv, pointerId: ev.pointerId, startX: ev.clientX, startY: ev.clientY, startTime: performance.now() };
+        group.classList.add('dragging');
+        nv.r = nv.baseR + 2; // subtle lift
+        applyNode(nv);
+      });
+      group.addEventListener('pointermove', (ev) => {
+        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
+        const p = toSvg(ev.clientX, ev.clientY);
+        nv.x = p.x;
+        nv.y = p.y;
+        applyNode(nv);
+      });
+      group.addEventListener('pointerup', (ev) => {
+        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
+        finishDrag(group, nv, ev.clientX, ev.clientY, ev.pointerId, true);
+      });
+      group.addEventListener('pointercancel', (ev) => {
+        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
+        finishDrag(group, nv, ev.clientX, ev.clientY, ev.pointerId, false);
+      });
+
+      svg.appendChild(group);
+    });
+  })();
+}
 
 export function renderTroubleshoot(host: HTMLElement): void {
   clear(host);
@@ -149,6 +494,68 @@ export function renderTroubleshoot(host: HTMLElement): void {
     updateEvidence();
     renderReportTab(document.getElementById('tab-report') as HTMLElement);
   };
+
+  // ---- Demo: jump straight to a completed diagnosis (dev/test aid) ----
+  const loadDemoSession = async () => {
+    // 1. drive the real inspection panel: select + analyze the first less-paste board
+    const result = await vision.analyzeFirst((b) => b.class === 'less-paste');
+
+    // 2. session context from the (real) analysis
+    appState.material = 'solder-paste';
+    const boardClass = result?.board?.dominantDefect ?? 'less-paste';
+    addSymptoms(boardClassToSymptoms(boardClass) as SymptomId[]);
+    if (result) {
+      appState.lastImage = {
+        label: result.label,
+        imageUrl: result.imageUrl,
+        board: result.board,
+        quality: result.quality,
+        analysis: result.analysis,
+      };
+    }
+    appState.lastConfirmedCause = 'Air trapped in syringe / supply';
+    appState.lastSimilarCases = {
+      total: 12,
+      most_common_cause: 'Air trapped in syringe / supply',
+      message: 'Similar problems occurred 12 times. In 5 cases, the main cause was Air trapped in syringe / supply.',
+      defect_type: boardClass === 'bridging' ? 'Bridging' : 'Less Paste',
+    };
+
+    // 3. run the real rule engine locally (no Gemini call)
+    const { report, actions } = await computeRuleEngine();
+
+    // 4. supply the chat with a canned (completed) discovery transcript
+    clear(chatLog);
+    conversationHistory = [];
+    chatPhase = 'followup';
+    diagnosed = true;
+    lastAnalysis = result?.analysis ?? null;
+    const ds = result?.analysis?.defect_summary;
+    const counts = ds
+      ? `${ds['Less Paste']} leg(s) with insufficient paste, ${ds.Bridging} bridging and ${ds.Good} good`
+      : 'a dispensing defect';
+    const say = (role: 'user' | 'model', text: string) => {
+      if (role === 'user') userSay(text);
+      else aiSay(text, true);
+      conversationHistory.push({ role, content: text });
+    };
+    say('model', `Board analyzed. I see ${counts}. Has this been happening continuously, or only occasionally?`);
+    say('user', 'Occasionally, and it started after we switched to a new solder paste batch.');
+    say('model', 'Got it. Is it concentrated in one area of the board, or spread across several locations?');
+    say('user', 'Mostly along one edge of the board.');
+    say('model', 'Understood. The diagnosis is ready on the left - review the ranked causes and the action plan.');
+
+    // 5. reveal results and focus the workbench
+    renderDiagnosisFor(report, actions);
+    updateEvidence();
+    switchTab('troubleshoot');
+    chatPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const demoBtn = button('Load demo', 'btn sm ghost');
+  demoBtn.style.marginLeft = 'auto';
+  demoBtn.title = 'Skip setup: analyze the first board and load a completed diagnosis';
+  demoBtn.onclick = () => { void loadDemoSession(); };
+  chatPanel.querySelector('.panel-head')!.appendChild(demoBtn);
 
   // ---- One Gemini chat turn (template fallback when the server is down) ----
   const sendTurn = async (message: string, fallback: string, pushUser: boolean) => {
@@ -448,6 +855,9 @@ export function renderDiagnosis(
         }
         scBlock.appendChild(el('div', 'sc-label', 'Historical cases'));
         scBlock.appendChild(el('div', 'sc-text', sc.message));
+        const graph = el('div', 'rc-graph');
+        scBlock.appendChild(graph);
+        renderHistoricalGraph(graph, defectType, d.causes[0]?.name ?? null, sc.total_cases);
       })
       .catch(() => {
         scBlock?.remove();
@@ -478,22 +888,49 @@ export function renderDiagnosis(
   // ---- Engineer feedback (stays interactive after saving) ----
   const fb = el('div', 'feedback diag-section');
   fb.appendChild(el('div', 'flabel', 'What actually fixed it? (feeds learning database)'));
-  fb.appendChild(el('div', 'feedback-help', 'Pick the cause that resolved it, or type what fixed it. Optional.'));
+  fb.appendChild(el('div', 'feedback-help', 'Pick the cause that resolved it, then press Save to Case Log. The note is optional.'));
+
+  const noteDrafts = new Map<string, string>();
+  let chosenCauseId: string | null = null;
+  let savedCauseId: string | null = null;
+  let savedNote = '';
 
   const fixInput = el('input', 'freetext-input') as HTMLInputElement;
   fixInput.placeholder = 'What actually fixed it? (optional)';
   fixInput.setAttribute('aria-label', 'What actually fixed it');
-  fixInput.value = appState.fixNote ?? '';
+  fixInput.value = noteDrafts.get('') ?? '';
   fixInput.addEventListener('input', () => {
+    noteDrafts.set(currentKey(), fixInput.value);
     appState.fixNote = fixInput.value.trim() || undefined;
+    updateStatus();
+    syncSaveBtn();
   });
   fb.appendChild(fixInput);
 
   const causeOptions = d.causes.slice(0, 5);
   const chips = el('div', 'chips');
+  const chipButtons: HTMLButtonElement[] = [];
   const status = el('div', 'nlu-note', '');
   status.setAttribute('aria-live', 'polite');
-  let chosenCauseId: string | null = null;
+
+  const currentKey = (): string => chosenCauseId ?? '';
+  const isDirty = (): boolean => chosenCauseId !== savedCauseId || fixInput.value !== savedNote;
+  const updateStatus = (): void => {
+    if (!chosenCauseId) return;
+    const name = appState.lastConfirmedCause ?? chosenCauseId;
+    if (savedCauseId) {
+      status.innerHTML = isDirty()
+        ? `Selected: ${name}. <b style="color:var(--warn)">Unsaved change</b> - press Save to Case Log to update.`
+        : `<b style="color:var(--accent)">✓ Case #${appState.caseRecordId ?? ''} saved.</b> Confirmed: ${name}.`;
+    } else {
+      status.textContent = `Selected: ${name} - press Save to Case Log to record it.`;
+    }
+  };
+  const syncSaveBtn = (): void => {
+    saveBtn.textContent = savedCauseId !== null && !isDirty()
+      ? `Case #${appState.caseRecordId} saved`
+      : 'Save to Case Log';
+  };
 
   // one upsert path for both the ✓ chips and SAVE CASE -> same case number
   const persistCase = async (): Promise<number> => {
@@ -539,20 +976,26 @@ export function renderDiagnosis(
     return id;
   };
 
-  const chooseCause = async (causeId: string) => {
-    try {
-      chosenCauseId = causeId;
-      appState.lastConfirmedCause = d.causes.find((c) => c.causeId === causeId)?.name ?? causeId;
-      const cases = await getAllCases();
-      const id = await persistCase();
-      status.innerHTML = `<b style="color:var(--accent)">✓ Case #${id} saved.</b> Confirmed: ${appState.lastConfirmedCause}. Priors updated from ${cases.length} historical cases.`;
-    } catch (err) {
-      console.error('chooseCause failed', err);
-      status.textContent = 'Could not save the case. See console for details.';
+  // Selecting a cause does NOT persist - it only stages the choice until SAVE.
+  const selectCause = (causeId: string) => {
+    const prevKey = currentKey();
+    noteDrafts.set(prevKey, fixInput.value);
+    // text typed before a cause was picked carries into the first selection
+    if (prevKey === '' && !noteDrafts.has(causeId) && fixInput.value) {
+      noteDrafts.set(causeId, fixInput.value);
     }
+    chosenCauseId = causeId;
+    appState.lastConfirmedCause = d.causes.find((c) => c.causeId === causeId)?.name ?? causeId;
+    chipButtons.forEach((b) => b.classList.toggle('selected', b.dataset.causeId === causeId));
+    fixInput.value = noteDrafts.get(causeId) ?? '';
+    appState.fixNote = fixInput.value.trim() || undefined;
+    updateStatus();
+    syncSaveBtn();
   };
   for (const c of causeOptions) {
-    const b = button(`✓ ${c.name}`, 'btn sm ghost', () => chooseCause(c.causeId));
+    const b = button(`✓ ${c.name}`, 'btn sm ghost', () => selectCause(c.causeId));
+    b.dataset.causeId = c.causeId;
+    chipButtons.push(b);
     chips.appendChild(b);
   }
   fb.appendChild(chips);
@@ -561,13 +1004,21 @@ export function renderDiagnosis(
 
   const row = el('div', 'freetext-row');
   const saveBtn = button('Save to Case Log', 'btn', async () => {
+    if (!chosenCauseId) {
+      status.textContent = 'Select the cause that fixed it, then press Save to Case Log.';
+      syncSaveBtn();
+      return;
+    }
     try {
-      const id = await persistCase();
-      saveBtn.textContent = `Case #${id} saved`;
-      // stays enabled: saving again updates the SAME case (upsert)
+      await persistCase();
+      savedCauseId = chosenCauseId;
+      savedNote = fixInput.value;
+      syncSaveBtn();
+      updateStatus();
+      // stays enabled: saving again (after selecting a different cause) updates the SAME case
     } catch (err) {
       console.error('Save to Case Log failed', err);
-      saveBtn.textContent = 'Save failed';
+      status.textContent = 'Could not save the case. See console for details.';
     }
   });
   const reportBtn = button('Open Report', 'btn primary', () => {
