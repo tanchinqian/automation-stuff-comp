@@ -445,6 +445,29 @@ def similar_cases(defect_type: str):
     }
 
 
+@app.get("/cases/matching")
+def matching_cases(defect_type: str):
+    """The actual case records behind /cases/similar's counts (read-only).
+
+    Reuses case_matches() and applies the exact same dedup key as
+    /cases/similar, so the returned total always equals its total_cases.
+    """
+    cases = load_cases()
+    matches = [c for c in cases if case_matches(c, defect_type)]
+
+    # dedupe by (image_path + confirmed cause) - identical to /cases/similar
+    seen = set()
+    deduped = []
+    for c in matches:
+        key = (c.get("image_path", ""),
+               (c.get("engineer_feedback", {}) or {}).get("actual_cause", ""))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(c)
+
+    return {"defect_type": defect_type, "cases": deduped, "total": len(deduped)}
+
+
 # ---------------------------------------------------------------------------
 # Chat layer (Gemini API)
 # ---------------------------------------------------------------------------

@@ -109,6 +109,7 @@ export function renderReportTab(host: HTMLElement): void {
 
   // Actions
   const row = el('div', 'freetext-row');
+  const fillBtn = button('Fill sample', 'btn ghost', fillSampleReport);
   const downloadBtn = button('Download Report', 'btn primary');
   const backBtn = button('Close', 'btn ghost', () => closeReportDrawer());
   row.appendChild(downloadBtn);
@@ -456,6 +457,37 @@ export function renderReportTab(host: HTMLElement): void {
     if (!data) return;
     buildReportPdf(data).save(`${data.reportId}.pdf`);
   };
+
+  // Dev/test aid: fill every report field with a realistic sample (Change: demo)
+  function fillSampleReport() {
+    const inAWeek = new Date(Date.now() + 7 * 86400000);
+    Object.assign(form, {
+      employeeName: form.employeeName || lsGet(LS_KEYS.employeeName!) || 'A. Engineer',
+      employeeId: form.employeeId || lsGet(LS_KEYS.employeeId!) || 'E-2048',
+      machineId: 'Dispenser A3',
+      affectedCount: '12 of 100 boards',
+      d3Status: 'Completed',
+      d3Action: 'Stopped the line and purged the syringe until the flow was continuous.',
+      d3CompletedBy: 'A. Engineer',
+      d3CompletedAt: nowLocalDatetime(),
+      d4Status: 'Confirmed',
+      d4Method: 'Three test shots confirmed the air bubble was cleared.',
+      d5Status: 'In Progress',
+      d5TargetDate: inAWeek.toISOString().slice(0, 10),
+      d5Responsible: 'B. Technician',
+      d6Action: 'Replaced the nozzle and recalibrated the dispense height.',
+      d6Status: 'Implemented',
+      d6Verified: 'Yes',
+      d7Notes: 'Purged the syringe and replaced the nozzle; dispense volume is repeatable again.',
+      confirmedCause: form.confirmedCause || 'Air trapped in syringe / supply',
+      closedBy: form.closedBy || 'A. Engineer',
+    });
+    lsSet(LS_KEYS.employeeName!, form.employeeName);
+    lsSet(LS_KEYS.employeeId!, form.employeeId);
+    lsSet(LS_KEYS.machineId!, form.machineId);
+    buildForm();
+    updateProgress();
+  }
 
   // Initial render -----------------------------------------------------
   renderSourceBox();

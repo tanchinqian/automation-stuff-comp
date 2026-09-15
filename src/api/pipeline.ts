@@ -158,6 +158,21 @@ export async function getSimilarCases(defectType: string): Promise<SimilarCasesR
   return (await res.json()) as SimilarCasesResult;
 }
 
+/** Response from GET /cases/matching - the actual records behind /cases/similar. */
+export interface MatchingCasesResult {
+  defect_type: string;
+  total: number;
+  cases: Record<string, unknown>[];
+}
+
+/** The deduped case records that make up /cases/similar's counts. */
+export async function getMatchingCases(defectType: string): Promise<MatchingCasesResult> {
+  const url = `${BASE_URL}/cases/matching?defect_type=${encodeURIComponent(defectType)}`;
+  const res = await fetch(url);
+  if (!res.ok) await parseError(res);
+  return (await res.json()) as MatchingCasesResult;
+}
+
 /** Send one conversational turn to the Gemini-backed diagnosis chat. */
 export async function chat(
   message: string,

@@ -24,7 +24,7 @@ interface BoardResult {
   total: number;
   flagged: number;
 }
-interface UnifiedCase {
+export interface UnifiedCase {
   key: string;
   source: 'local' | 'server' | 'both';
   idLabel: string;
@@ -124,7 +124,7 @@ function localToUnified(c: CaseRecord): UnifiedCase {
   };
 }
 
-function serverToUnified(rec: Record<string, unknown>): UnifiedCase {
+export function serverToUnified(rec: Record<string, unknown>): UnifiedCase {
   const fb = (rec.engineer_feedback ?? {}) as Record<string, unknown>;
   const confirmed = (fb.confirmed_defects ?? []) as string[];
   const board = serverBoard(rec);
@@ -162,6 +162,11 @@ function serverToUnified(rec: Record<string, unknown>): UnifiedCase {
     imagePath: (rec.image_path as string) ?? undefined,
     analysisRaw: rec.analysis_result,
   };
+}
+
+/** Map raw server case-log records (e.g. GET /cases/matching) to the unified model. */
+export function unifiedFromServerCases(records: Record<string, unknown>[]): UnifiedCase[] {
+  return records.map(serverToUnified);
 }
 
 function mergeBoth(local: UnifiedCase, server: UnifiedCase): UnifiedCase {
@@ -312,6 +317,87 @@ export function caseToReportData(c: UnifiedCase): ReportData {
   };
 }
 
+export interface CaseDetailOptions {
+  /** Honest one-line reason this case is shown (used by the case graph). */
+  matchedBecause?: string;
+  /** When provided, renders the inline resolve control (Learning DB tab only). */
+  onConfirm?: (causeId: string) => void;
+}
+
+/** Shared expanded-case detail markup (Learning DB tab + case graph popover). */
+export function renderCaseCardDetail(c: UnifiedCase, opts: CaseDetailOptions = {}): HTMLElement {
+  const detail = el('div', 'case-detail');
+  if (opts.matchedBecause) detail.appendChild(el('div', 'cd-match', opts.matchedBecause));
+
+  const row = (label: string, value: string) => {
+    const r = el('div', 'cd-row');
+    r.appendChild(el('div', 'cd-label', label));
+    r.appendChild(el('div', 'cd-value', value));
+    detail.appendChild(r);
+  };
+
+  row('Material', c.material || 'Not recorded');
+  row('Symptoms', c.symptoms.length ? c.symptoms.map(humanize).join(' · ') : 'Not recorded');
+  row('Board result', c.board
+    ? `${c.board.verdict} · ${c.board.lessPaste} Less Paste · ${c.board.bridging} Bridging · ${c.board.good} Good · ${c.board.total} legs detected`
+    : 'Not recorded');
+
+  if (c.rankedCauses.length) {
+    const sec = el('div', 'cd-section');
+    sec.appendChild(el('div', 'cd-label', 'Ranked causes'));
+    for (const [i, rc] of c.rankedCauses.slice(0, 3).entries()) {
+      const line = el('div', 'cd-line');
+      line.appendChild(el('span', 'num', `${i + 1}.`));
+      line.appendChild(el('span', 'val', humanize(rc.cause)));
+      line.appendChild(el('span', 'pct', `${pct(rc.score)}%`));
+      sec.appendChild(line);
+    }
+    detail.appendChild(sec);
+  }
+
+  if (c.actionPlan.length) {
+    const sec = el('div', 'cd-section');
+    sec.appendChild(el('div', 'cd-label', 'Action plan'));
+    for (const [i, step] of c.actionPlan.entries()) {
+      const line = el('div', 'cd-line');
+      line.appendChild(el('span', 'num', `${i + 1}.`));
+      line.appendChild(el('span', 'val', step));
+      sec.appendChild(line);
+    }
+    detail.appendChild(sec);
+  }
+
+  if (c.notes) row('Engineer notes', c.notes);
+  if (c.resolvedCause) row('Confirmed cause', `✓ ${humanize(c.resolvedCause)}`);
+
+  // Resolve action (open cases only; the Learning DB tab supplies onConfirm)
+  if (!c.resolvedCause && c.rankedCauses.length && opts.onConfirm) {
+    const confirm = opts.onConfirm;
+    const resolveRow = el('div', 'case-resolve');
+    resolveRow.appendChild(el('span', 'cd-label', 'Confirmed cause'));
+    const sel = el('select', 'case-resolve-select') as HTMLSelectElement;
+    sel.innerHTML = '<option value="">Select cause...</option>'
+      + c.rankedCauses.map((rc) => `<option value="${rc.cause}">${humanize(rc.cause)}</option>`).join('');
+    const confirmBtn = button('Confirm ✓', 'btn sm', () => {
+      if (!sel.value) { sel.focus(); return; }
+      confirmBtn.disabled = true;
+      confirm(sel.value);
+    });
+    resolveRow.appendChild(sel);
+    resolveRow.appendChild(confirmBtn);
+    detail.appendChild(resolveRow);
+  }
+
+  // Per-case report preview
+  const actionsRow = el('div', 'case-detail-actions');
+  actionsRow.appendChild(button('Preview Report', 'btn sm', () => {
+    openPdfPreview(caseToReportData(c), `case-${c.idLabel.replace(/[^A-Za-z0-9]/g, '') || 'log'}.pdf`);
+  }));
+  detail.appendChild(actionsRow);
+
+  return detail;
+}
+
 // ---------------------------------------------------------------------------
 // Tab renderer
 // ---------------------------------------------------------------------------
@@ -423,73 +509,7 @@ export function renderDatabase(host: HTMLElement): void {
   };
 
   const buildDetail = (c: UnifiedCase): HTMLElement => {
-    const detail = el('div', 'case-detail');
-    const row = (label: string, value: string) => {
-      const r = el('div', 'cd-row');
-      r.appendChild(el('div', 'cd-label', label));
-      r.appendChild(el('div', 'cd-value', value));
-      detail.appendChild(r);
-    };
-
-    row('Material', c.material || 'Not recorded');
-    row('Symptoms', c.symptoms.length ? c.symptoms.map(humanize).join(' · ') : 'Not recorded');
-    row('Board result', c.board
-      ? `${c.board.verdict} · ${c.board.lessPaste} Less Paste · ${c.board.bridging} Bridging · ${c.board.good} Good · ${c.board.total} legs detected`
-      : 'Not recorded');
-
-    if (c.rankedCauses.length) {
-      const sec = el('div', 'cd-section');
-      sec.appendChild(el('div', 'cd-label', 'Ranked causes'));
-      for (const [i, rc] of c.rankedCauses.slice(0, 3).entries()) {
-        const line = el('div', 'cd-line');
-        line.appendChild(el('span', 'num', `${i + 1}.`));
-        line.appendChild(el('span', 'val', humanize(rc.cause)));
-        line.appendChild(el('span', 'pct', `${pct(rc.score)}%`));
-        sec.appendChild(line);
-      }
-      detail.appendChild(sec);
-    }
-
-    if (c.actionPlan.length) {
-      const sec = el('div', 'cd-section');
-      sec.appendChild(el('div', 'cd-label', 'Action plan'));
-      for (const [i, step] of c.actionPlan.entries()) {
-        const line = el('div', 'cd-line');
-        line.appendChild(el('span', 'num', `${i + 1}.`));
-        line.appendChild(el('span', 'val', step));
-        sec.appendChild(line);
-      }
-      detail.appendChild(sec);
-    }
-
-    if (c.notes) row('Engineer notes', c.notes);
-    if (c.resolvedCause) row('Confirmed cause', `✓ ${humanize(c.resolvedCause)}`);
-
-    // Resolve action (open cases only)
-    if (!c.resolvedCause && c.rankedCauses.length) {
-      const resolveRow = el('div', 'case-resolve');
-      resolveRow.appendChild(el('span', 'cd-label', 'Confirmed cause'));
-      const sel = el('select', 'case-resolve-select') as HTMLSelectElement;
-      sel.innerHTML = '<option value="">Select cause...</option>'
-        + c.rankedCauses.map((rc) => `<option value="${rc.cause}">${humanize(rc.cause)}</option>`).join('');
-      const confirmBtn = button('Confirm ✓', 'btn sm', async () => {
-        if (!sel.value) { sel.focus(); return; }
-        confirmBtn.disabled = true;
-        await confirmCause(c, sel.value);
-      });
-      resolveRow.appendChild(sel);
-      resolveRow.appendChild(confirmBtn);
-      detail.appendChild(resolveRow);
-    }
-
-    // Per-case report preview
-    const actionsRow = el('div', 'case-detail-actions');
-    actionsRow.appendChild(button('Preview Report', 'btn sm', () => {
-      openPdfPreview(caseToReportData(c), `case-${c.idLabel.replace(/[^A-Za-z0-9]/g, '') || 'log'}.pdf`);
-    }));
-    detail.appendChild(actionsRow);
-
-    return detail;
+    return renderCaseCardDetail(c, { onConfirm: (causeId) => { void confirmCause(c, causeId); } });
   };
 
   const buildCard = (c: UnifiedCase): HTMLElement => {

@@ -26,6 +26,11 @@ export interface InspectionPanelHandle {
   getResult: () => VisionResult | null;
   /** set the feed handler after creation; flushes a queued result if present */
   setOnFeed: (fn: (r: VisionResult) => void) => void;
+  /**
+   * Select the first board matching `match` (default: a less-paste board), load
+   * it onto the canvas and run the analysis. Does NOT auto-feed to the chat.
+   */
+  analyzeFirst: (match?: (b: BoardImage) => boolean) => Promise<VisionResult | null>;
 }
 
 // Good = phosphor green (accent). Defects = semantic red. Misalignment = amber.
@@ -37,6 +42,18 @@ const CLASS_COLORS: Record<string, string> = {
   bridging: '#ff5f6d',
   misalignment: '#ffb64d',
 };
+
+/**
+ * Map a defect proportion (0-1, higher = worse) to a whole-star 0-5 score so
+ * severity matters: 1 bad leg out of 40 must not score the same as 10 out of 40.
+ */
+function severityStars(ratio: number): number {
+  if (ratio <= 0) return 5;
+  if (ratio <= 0.05) return 4;
+  if (ratio <= 0.15) return 3;
+  if (ratio <= 0.3) return 2;
+  return 1;
+}
 
 /**
  * Workbench inspection panel, fed by the dataset registry. Swapping the
@@ -161,7 +178,7 @@ export function createInspectionPanel(opts: {
     clear(qualityBox);
   };
 
-  const loadBoard = async (board: BoardImage) => {
+  const loadBoard = (board: BoardImage) => new Promise<void>((resolve) => {
     const img = new Image();
     img.onload = () => {
       const scale = Math.min(1, 900 / img.naturalWidth);
@@ -186,13 +203,17 @@ export function createInspectionPanel(opts: {
       clearBoard();
       const gtLabel = board.class === 'unknown' ? 'unknown' : BOARD_CLASS_LABELS[board.class];
       legend.textContent = `${board.label} - ground truth: ${gtLabel} - run ANALYZE BOARD`;
+      resolve();
     };
+    img.onerror = () => resolve();
     img.src = board.src;
-  };
+  });
 
   // Populate gallery from the active dataset provider
+  let boardList: BoardImage[] = [];
   const provider = registry.get('pcb-aoi') as DatasetProvider;
   provider.list().then((boards) => {
+    boardList = boards;
     for (const b of boards) {
       const chip = el('button', 'scene-chip', b.class === 'good' ? '✓ ' + b.class.replace(/-/g, ' ') : '⚠ ' + b.class.replace(/-/g, ' ')) as HTMLButtonElement;
       chip.type = 'button';
@@ -200,7 +221,7 @@ export function createInspectionPanel(opts: {
       chip.onclick = () => {
         gallery.querySelectorAll('.scene-chip').forEach((c) => c.classList.remove('selected'));
         chip.classList.add('selected');
-        loadBoard(b);
+        void loadBoard(b);
       };
       gallery.appendChild(chip);
     }
@@ -240,10 +261,10 @@ export function createInspectionPanel(opts: {
     if (f) loadFile(f);
   };
 
-  const run = async () => {
+  const run = async (deliver = true): Promise<VisionResult | null> => {
     if (!lastImageData) {
       legend.textContent = 'No frame to analyze - pick a board or upload a photo first.';
-      return;
+      return null;
     }
 
     analyzeBtn.disabled = true;
@@ -329,18 +350,24 @@ export function createInspectionPanel(opts: {
     qh.appendChild(el('div', 'score-label', `board quality / 100 - ${dominant}`));
     qualityBox.appendChild(qh);
 
-    // Component scores: the server pipeline derives them from the analysis
-    // result; the classical detector uses boardQualityScore() directly.
+    // Component scores: the server pipeline derives them from the per-leg
+    // proportions; the classical detector uses boardQualityScore() directly.
     let qShape = quality.shape;
     let qSize = quality.size;
     let qPosition = quality.position;
     let qRisk = quality.defectRisk;
-    if (lastAnalysis) {
+    if (lastAnalysis && lastAnalysis.total_legs_detected > 0) {
       const ds = lastAnalysis.defect_summary;
-      qShape = ds.Bridging > 0 ? 3 : 5;
-      qSize = ds['Less Paste'] > 0 ? 3 : 5;
-      qPosition = lastAnalysis.flagged_legs === 0 ? 5 : 4;
-      qRisk = Math.max(0, Math.min(5, Math.round(quality.overall / 20)));
+      const total = lastAnalysis.total_legs_detected;
+      const bridgingRatio = ds.Bridging / total;
+      const lessPasteRatio = ds['Less Paste'] / total;
+      const flaggedRatio = lastAnalysis.flagged_legs / total;
+      qShape = severityStars(bridgingRatio);
+      qSize = severityStars(lessPasteRatio);
+      qPosition = severityStars(flaggedRatio);
+      // defect risk blends the other three; bridging and flagged legs weigh
+      // higher because they are more urgent than a paste-volume shortfall
+      qRisk = severityStars(bridgingRatio * 0.4 + flaggedRatio * 0.4 + lessPasteRatio * 0.2);
     }
 
     if (lastAnalysis) {
@@ -377,9 +404,10 @@ export function createInspectionPanel(opts: {
     };
     onAnalyze?.(lastResult);
     // automatically hand the result to the diagnosis chat
-    deliverFeed(lastResult);
+    if (deliver) deliverFeed(lastResult);
+    return lastResult;
   };
-  analyzeBtn.onclick = run;
+  analyzeBtn.onclick = () => { void run(); };
 
   const panelEl = el('section', 'panel');
   const head = el('div', 'panel-head');
@@ -400,6 +428,20 @@ export function createInspectionPanel(opts: {
         pendingFeed = null;
         fn(queued);
       }
+    },
+    analyzeFirst: async (match) => {
+      if (!boardList.length) {
+        try { boardList = await provider.list(); } catch { /* ignore */ }
+      }
+      const predicate = match ?? ((b: BoardImage) => b.class === 'less-paste');
+      const board = boardList.find(predicate) ?? boardList[0];
+      if (!board) return null;
+      gallery.querySelectorAll('.scene-chip').forEach((c) => c.classList.remove('selected'));
+      const chip = Array.from(gallery.querySelectorAll('.scene-chip'))
+        .find((c) => (c as HTMLButtonElement).title === board.label);
+      chip?.classList.add('selected');
+      await loadBoard(board);
+      return run(false); // analyze without auto-feeding to the chat
     },
   };
 }
