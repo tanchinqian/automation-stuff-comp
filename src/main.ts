@@ -1,13 +1,14 @@
 import './style.css';
 import { el } from './ui/dom';
-import { renderTroubleshoot, switchTab } from './ui/troubleshoot';
+import { renderTroubleshoot, switchTab, toggleAssistant } from './ui/troubleshoot';
 import { renderDatabase } from './ui/database';
 import { renderReportTab } from './ui/report';
+import { renderCalibrationTab } from './ui/calibration';
+import { switchWorkbenchView } from './ui/nav';
 
 const TABS = [
   { id: 'troubleshoot', label: '01 WORKBENCH' },
-  { id: 'report', label: '02 REPORT' },
-  { id: 'database', label: '03 LEARNING DB' },
+  { id: 'database', label: '02 LEARNING DB' },
 ];
 
 const app = document.getElementById('app')!;
@@ -44,11 +45,59 @@ topbar.appendChild(nav);
 
 topbar.appendChild(el('div', 'spacer'));
 
+// Light / dark mode toggle (persisted). Applied before the first paint.
+const MODE_KEY = 'dispenseai.mode';
+const modeBtn = el('button', 'btn sm ghost mode-toggle', '') as HTMLButtonElement;
+modeBtn.type = 'button';
+modeBtn.id = 'mode-toggle';
 
+const applyMode = (mode: 'dark' | 'light'): void => {
+  document.documentElement.dataset.mode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* storage unavailable */ }
+  document.querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', mode === 'light' ? '#f6f8fa' : '#0d1016');
+  modeBtn.textContent = mode === 'light' ? 'Dark mode' : 'Light mode';
+  const label = mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+  modeBtn.title = label;
+  modeBtn.setAttribute('aria-label', label);
+  modeBtn.setAttribute('aria-pressed', String(mode === 'light'));
+};
 
+const readMode = (): 'dark' | 'light' => {
+  try { return localStorage.getItem(MODE_KEY) === 'light' ? 'light' : 'dark'; } catch { return 'dark'; }
+};
 
+let mode = readMode();
+applyMode(mode);
+modeBtn.onclick = () => {
+  mode = mode === 'light' ? 'dark' : 'light';
+  applyMode(mode);
+};
+topbar.appendChild(modeBtn);
+
+// Assistant drawer toggle (right side of the topbar)
+const assistantBtn = el('button', 'btn sm ghost assistant-toggle', 'Assistant') as HTMLButtonElement;
+assistantBtn.type = 'button';
+assistantBtn.id = 'assistant-toggle';
+assistantBtn.setAttribute('aria-controls', 'chat-drawer');
+assistantBtn.setAttribute('aria-expanded', 'false');
+assistantBtn.onclick = () => toggleAssistant();
+topbar.appendChild(assistantBtn);
 
 app.appendChild(topbar);
+
+// Expose the topbar's rendered height so the sticky Workbench sub-tabs can sit
+// directly below it. Measured (not hardcoded) because the bar wraps on narrow
+// screens and when the content changes.
+const syncTopbarHeight = (): void => {
+  document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`);
+};
+syncTopbarHeight();
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(syncTopbarHeight).observe(topbar);
+} else {
+  window.addEventListener('resize', syncTopbarHeight);
+}
 
 // Tab panes
 const panes = el('div', 'panes');
@@ -59,13 +108,47 @@ for (const t of TABS) {
   pane.setAttribute('aria-labelledby', t.id);
   if (t.id !== 'troubleshoot') pane.classList.add('hidden');
   panes.appendChild(pane);
+
+  if (t.id === 'troubleshoot') {
+    // Workbench sub-tabs: inspect & diagnose, report, calibration. All panes
+    // stay in the DOM (only visibility toggles) so switching never resets state.
+    const subtabs = el('div', 'subtabs');
+    subtabs.setAttribute('role', 'tablist');
+    subtabs.setAttribute('aria-label', 'Workbench sections');
+    for (const v of [
+      { id: 'inspect', label: 'Inspect & Diagnose' },
+      { id: 'report', label: 'Report' },
+      { id: 'calibration', label: 'Calibration' },
+    ] as const) {
+      const b = el('button', 'subtab', v.label) as HTMLButtonElement;
+      b.type = 'button';
+      b.id = `workbench-${v.id}-tab`;
+      b.dataset.view = v.id;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', v.id === 'inspect' ? 'true' : 'false');
+      b.setAttribute('aria-controls', `workbench-${v.id}`);
+      b.onclick = () => switchWorkbenchView(v.id);
+      subtabs.appendChild(b);
+    }
+    pane.appendChild(subtabs);
+
+    for (const v of ['inspect', 'report', 'calibration'] as const) {
+      const sub = el('div', v === 'inspect' ? 'subpane' : 'subpane hidden');
+      sub.id = `workbench-${v}`;
+      sub.setAttribute('role', 'tabpanel');
+      sub.setAttribute('aria-labelledby', `workbench-${v}-tab`);
+      if (v !== 'inspect') sub.setAttribute('aria-hidden', 'true');
+      pane.appendChild(sub);
+    }
+  }
 }
 app.appendChild(panes);
 
-// Render each tab
-renderTroubleshoot(document.getElementById('tab-troubleshoot')!);
+// Render each section
+renderTroubleshoot(document.getElementById('workbench-inspect')!);
+renderReportTab(document.getElementById('workbench-report')!);
+renderCalibrationTab(document.getElementById('workbench-calibration')!);
 renderDatabase(document.getElementById('tab-database')!);
-renderReportTab(document.getElementById('tab-report')!);
 
 // Footer
 const footer = el('div', 'footer');

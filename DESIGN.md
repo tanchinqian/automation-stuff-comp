@@ -2,10 +2,13 @@
 name: DISPENSE.AI
 description: AI Dispensing Defect Detective - an offline, on-device troubleshooting console for fluid-dispensing defects.
 colors:
-  phosphor-green: "#2ee6a8"
-  phosphor-green-dim: "#1fbf89"
-  warn-amber: "#ffb64d"
-  danger-red: "#ff5f6d"
+  # Dark mode (default)
+  steel-blue: "#4a7a9e"
+  steel-blue-dim: "#3c6480"
+  on-brand: "#0a0f14"
+  status-good: "#5a9e6f"
+  status-warn: "#ffb64d"
+  status-fail: "#ff5f6d"
   chat-user-blue: "#5aa9ff"
   console-ink: "#d7dde6"
   console-ink-dim: "#8a93a6"
@@ -15,9 +18,32 @@ colors:
   surface-2: "#12161f"
   surface-3: "#1a1f2b"
   hairline: "#232a38"
-  on-accent: "#06130e"
-  amber-bar-deep: "#b8862f"
-  danger-bar-deep: "#a93a45"
+  hairline-soft: "#1a202b"
+  data-viz-1: "#35586f"
+  data-viz-2: "#4a7a9e"
+  data-viz-3: "#6f9fc0"
+  data-viz-4: "#9dc0d8"
+  # Light mode
+  light-surface-0: "#eceff2"
+  light-surface-1: "#f6f8fa"
+  light-surface-2: "#ffffff"
+  light-surface-3: "#e2e7ec"
+  light-hairline: "#c6cfd8"
+  light-hairline-soft: "#dbe1e7"
+  light-ink: "#1b222a"
+  light-ink-dim: "#4c5864"
+  light-ink-faint: "#78848f"
+  light-brand: "#33627f"
+  light-brand-dim: "#2a5069"
+  light-on-brand: "#ffffff"
+  light-status-good: "#2f7d4f"
+  light-status-warn: "#8a5a00"
+  light-status-fail: "#b3202c"
+  light-chat-user: "#2f6fbf"
+  light-data-viz-1: "#24455c"
+  light-data-viz-2: "#33627f"
+  light-data-viz-3: "#4f80a0"
+  light-data-viz-4: "#7ba6bf"
 typography:
   display:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
@@ -30,6 +56,10 @@ typography:
   hero-title:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
     fontSize: "21px"
+    fontWeight: 600
+  hero-title-lg:
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
+    fontSize: "24px"
     fontWeight: 600
   headline:
     fontFamily: "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
@@ -70,20 +100,17 @@ typography:
     fontSize: "34px"
 rounded:
   xs: "2px"
-  sm: "4px"
-  md: "8px"
-  lg: "10px"
-  pill: "14px"
-  pill-lg: "20px"
-  scene: "16px"
+  sm: "3px"
+  md: "4px"
+  lg: "4px"
 spacing:
   sm: "8px"
   md: "16px"
   lg: "20px"
 components:
   button-primary:
-    backgroundColor: "{colors.phosphor-green}"
-    textColor: "#06130e"
+    backgroundColor: "{colors.steel-blue}"
+    textColor: "{colors.on-brand}"
     rounded: "{rounded.md}"
     padding: "9px 16px"
   button-default:
@@ -108,126 +135,145 @@ components:
 
 **Creative North Star: "The Precision Lab Console"**
 
-DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a near-black control surface, phosphor-green readouts, monospace numerals, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: crisp corners, thin borders, tabular numerals, and status conveyed through a single disciplined accent rather than decorative color.
+DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. Density is deliberately high (a cockpit, not an airy gallery) because the user is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.
 
-The personality is precise and unassuming. It earns attention through density, alignment, and the confidence of a well-calibrated machine, not through flourish. The one moment of life is the phosphor-green accent that marks the active, the ranked, and the actionable. Amber and red exist strictly as semantic warning/defect states and never as decoration.
+The personality is precise and unassuming. It earns attention through density, alignment, and the confidence of a well-calibrated machine, not through flourish.
 
 **Key Characteristics:**
-- Dark charcoal surfaces with a single phosphor-green accent (plus amber/danger reserved for semantic states).
-- Monospace for numerals, labels, and panel titles; sans-serif for body and descriptions.
-- Dense, cockpit-grade spacing with hairline separators and tight, precise cards.
-- Instrument markers: corner ticks, scanline texture, cause-tree visuals, tabular numerals.
+- Two modes of one identity: Steel Blue dark (default) and Steel Blue light, toggled once for the whole console.
+- One accent (steel blue) for brand and interactive controls; amber/red/green reserved for semantic status; a separate data-viz ramp for charts.
+- Monospace for numerals, labels, IDs, and technical values; sans-serif for body and section titles.
+- Flat, hairline-separated surfaces; no decorative shadows or neon glows.
+- Sharp 2-4px corners; status badges are flat rectangles, not pills.
 
 ## Colors
 
-A restrained dark palette with one dominant phosphor-green accent. Color is a signal, not decoration: the accent marks the active, ranked, and actionable; amber and red are semantic only.
+Color is roles first. A hue earns its place by doing one job:
+- `--brand` / `--brand-dim` / `--brand-tint` / `--on-brand`: buttons, active tab, links, focus rings, selected chips. Never status.
+- `--status-good` / `--status-warn` / `--status-fail`: pass/good/confirmed/resolved; warnings; failures/defects. Nothing else.
+- `--data-viz-1..4`: cause bars, quality stars, the Related-cases timeline, progress meters. Charts are data, not brand, and not status.
+- Neutrals (`--bg-0..3`, `--line`, `--line-soft`, `--ink`, `--ink-dim`, `--ink-faint`): surfaces, borders, text.
+- `--chat-user`: the user's chat bubble/avatar only.
 
-### Primary
-- **Phosphor Green** (#2ee6a8): the single accent. Active states, primary CTAs, ranked-cause bars, selected chips, confidence values, the brand mark. Used sparingly so it stays meaningful.
-- **Phosphor Green Dim** (#1fbf89): hover states and secondary accent on the primary green, e.g. `.bar-fill` gradients and `:hover` borders.
-- **On Accent** (#06130e): the dark text on phosphor-green-filled buttons and labels, so the accent CTA stays readable (WCAG AA).
+### Dark mode (default)
+- **Steel Blue** (#4a7a9e) - brand/interactive; dim #3c6480; tint rgba(74,122,158,0.12); `--on-brand` #0a0f14.
+- **Status** good #5a9e6f, warn #ffb64d, fail #ff5f6d.
+- **Ink** #d7dde6 / #8a93a6 / #5a6272.
+- **Surfaces** #07090d / #0d1016 / #12161f / #1a1f2b; hairlines #232a38 / #1a202b.
+- **Data-viz** #35586f, #4a7a9e, #6f9fc0, #9dc0d8 (deep to bright).
+- **Chat user** #5aa9ff.
 
-### Secondary (semantic, reserved)
-- **Warn Amber** (#ffb64d): warnings and mid-confidence indicators (reasoning callouts, mid-range bars, status warnings).
-- **Danger Red** (#ff5f6d): defect/error states and high-confidence-of-problem bars (missing-dot detections).
-- **Chat User Blue** (#5aa9ff): reserved exclusively for the user's chat bubbles/avatar so assistant (green) vs user (blue) is always clear. It is a muted secondary, never a page accent.
-- **Amber Bar Deep** (#b8862f) and **Danger Bar Deep** (#a93a45): the deeper end of the amber/red gradient fills on confidence bars, for legibility of the fill against the track.
-
-### Neutral
-- **Console Ink** (#d7dde6): primary text.
-- **Console Ink Dim** (#8a93a6): secondary text and descriptions.
-- **Console Ink Faint** (#5a6272): hints, captions, placeholders.
-- **Surface 0/1/2/3** (#07090d / #0d1016 / #12161f / #1a1f2b): the page background through elevated surfaces.
-- **Hairline** (#232a38): borders and separators.
+### Light mode
+Same roles, inverted surfaces, status hues darkened for legibility on light backgrounds. Applied with `data-mode="light"` on the root element (persisted, set by the topbar toggle).
+- **Light brand** #33627f, dim #2a5069, `--on-brand` #ffffff.
+- **Light status** good #2f7d4f, warn #8a5a00, fail #b3202c.
+- **Light ink** #1b222a / #4c5864 / #78848f.
+- **Light surfaces** #eceff2 / #f6f8fa / #ffffff / #e2e7ec; hairlines #c6cfd8 / #dbe1e7.
+- **Light data-viz** #24455c, #33627f, #4f80a0, #7ba6bf.
+- **Light chat user** #2f6fbf.
+- **Scrims** (`--scrim`, `--scrim-soft`) darken the page behind modal and drawer overlays in both modes.
 
 ### Named Rules
-**The One Voice Rule.** The phosphor-green accent is the only page accent. Amber and red are used only to carry semantic status (warning, defect, danger); blue only for the user chat. Any new color must earn a semantic role before it may appear.
+**The One Voice Rule.** One accent carries brand and interaction. Amber, red, and green exist only as semantic status; blue only as the user-chat tint. Any new color must earn a semantic role before it may appear.
+
+**The Role Separation Rule.** A long, high-scoring cause bar is not "good": charts use `--data-viz-*`, never `--status-good` or `--brand`.
 
 ## Typography
 
-**Display / Label / Mono Font:** JetBrains Mono (fallback Cascadia Mono, Consolas)
-**Body Font:** Inter (fallback Segoe UI, system-ui)
-**Label/Mono Font:** JetBrains Mono
+**Mono:** JetBrains Mono (fallback Cascadia Mono, Consolas) for numerals, labels, panel titles, IDs, timestamps, percentages, and technical values.
+**Sans:** Inter (fallback Segoe UI, system-ui) for body prose and section titles.
 
-**Character:** Monospace carries the instrument language (labels, panel titles, numerals, status); the sans-serif body keeps descriptions readable at density. Uppercase mono labels are the signposting voice of the console.
+**Character:** monospace carries the instrument language; the sans-serif keeps prose readable at density. Section headers are sentence-case sans; mono is reserved for genuinely technical content.
 
 ### Hierarchy
 - **Display / Score** (700, mono, 40px): the big quality-score readout.
-- **Hero Title** (600, 21px): the identified-defect heading.
+- **Hero Title** (600, sans, 24px): the identified-defect heading.
 - **Headline** (600, 17px): panel/dialog titles.
 - **Title** (600, 15px): question text and hero headings.
 - **Body** (400, 14px, line-height 1.5): descriptions, reasoning, action detail. ~65ch max.
 - **Small Body** (400, 13px / 13.5px): chat bubbles, bar names, reasoning text.
 - **Label** (mono, 11px, uppercase, tracking 0.08em): section labels, chip text, status chips.
-- **Micro Label** (mono, 10px / 10.5px): category tags, footnote-style labels.
-- **Numerals** (mono, tabular-nums): every number display (percentages, scores, metrics) uses tabular figures so columns align.
+- **Micro Label** (mono, 10px / 10.5px): category tags, footnote labels.
+- **Numerals** (mono, tabular-nums): every number display uses tabular figures so columns align.
 
 Type ramp used across the system (px): 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 15, 16, 17, 19, 21, 24, 34, 40.
 
 ### Named Rules
 **The Tabular Rule.** All numeric readouts set `font-variant-numeric: tabular-nums` so values align in columns and feel like instrument readouts.
 
+**The Two-Font Rule.** Mono only where the content is data or instrumentation (IDs, counts, timestamps, technical labels). Section titles, prose, and buttons' descriptive text use the sans face.
+
 ## Layout
 
-- Max-width container `1380px`, centered, with `20px 24px` page padding.
-- Workbench uses a two-column grid: main column (`minmax(0,1fr)`) and a fixed `380px` sticky chat sidebar. Stacks to a single column below `980px`.
-- Panels within the main column stack with an `18px` gap (`.main-col`).
-- Gap rhythm: `8 / 16 / 18 / 20px`. Panel body padding `16px`; section labels use mono uppercase.
-- High density by default: tight paddings, hairline separators, tabular data. Not an airy layout.
+- Two top-level tabs: `01 WORKBENCH`, `02 LEARNING DB`.
+- Workbench has a sticky sub-tab strip directly under the sticky topbar: `Inspect & Diagnose` | `Report`. Panes are shown/hidden only, so state survives switching.
+- `Inspect & Diagnose` is a single full-width column (max `1440px`) stacking Image Inspection and Diagnosis.
+- The Assistant is an overlay drawer (fixed right, `min(420px, 100vw)`) with a dimming backdrop; it never occupies layout space. Open via the topbar toggle, close via backdrop, Escape, toggle, or its close button.
+- Report and Learning DB use the standard `1380px` centered layout with `20px 24px` page padding.
+- Everything collapses to one column below `980px`; the drawer goes full width below `640px`.
+- Gap rhythm: `8 / 16 / 18 / 20px`; panel body padding `16px`.
 
 ## Elevation & Depth
 
-The system is flat and tonal: depth comes from surface lightness steps and hairline borders, not drop shadows. There are no decorative box-shadows; the only glow (`--glow`) is a subtle phosphor-green halo reserved for the active/selected state and the brand mark, kept low-opacity (0.16).
+The system is flat and tonal: depth comes from surface lightness steps and hairline borders, not drop shadows. There is no decorative glow; hover, active, and selected states are communicated with border color, text color, and low-opacity tints.
 
 ### Named Rules
-**The Flat-By-Default Rule.** Surfaces are flat and separated by tone and hairline borders. The phosphor glow appears only as a state response (active, selected, hover), never as ambient decoration.
+**The Flat-By-Default Rule.** Surfaces are flat and separated by tone and hairlines. Colored side-borders, ambient glows, and drop shadows are not part of the language.
 
 ## Shapes
 
-The form language is precise and industrial: a radius scale of `2 / 4 / 6 / 8 / 10px`, with `10px` for panels, `8px` for buttons, chips, inputs, and cards, `6px` for small elements, and `4px` for tiny markers and bar tracks. Corners are gently curved but never pill-like for containers. Full pills are reserved only for small status badges (`14px`/`20px`) and scene chips (`16px`) where a pill reads as a control, not a surface. Interactive elements get a tactile press (translateY + slight scale) on `:active`.
+Radius scale is sharp and industrial: `2 / 3 / 4 / 4px` (`--r-2..--r-5`), used for panels, buttons, chips, inputs, and cards. Circles are reserved for genuinely round markers (status LEDs, timeline nodes). Interactive elements get a tactile press (`translateY(1px) scale(0.99)`) on `:active`.
 
 ## Components
 
 ### Buttons
-- **Shape:** gently curved (8px), 1px hairline border.
-- **Primary:** phosphor-green background, dark text (#06130e), bold mono label. Hover adds the phosphor glow + slight brighten.
-- **Default:** surface-3 background, console-ink text. Hover shifts border to phosphor-green-dim and text to phosphor-green.
-- **Ghost:** transparent background, no fill. `:active` presses down (translateY(1px) scale(0.99)).
+- **Shape:** 4px radius, 1px hairline border, mono label.
+- **Primary:** brand fill, `--on-brand` text, bold. Hover brightens slightly.
+- **Default:** `--bg-3` fill, `--ink` text. Hover shifts border and text to brand.
+- **Ghost:** transparent fill; `:active` presses down.
 
-### Chips (question options + scene picker)
-- **Style:** surface-2 background, dim text, 1px hairline border, mono label.
-- **State:** selected = phosphor-green border + green text + subtle green fill + low glow; unselected = dim. `:active` presses down.
+### Chips and status badges
+- **Question/scene chips:** `--bg-2`/`--bg-3` fill, dim text, hairline, 2-3px corners (rectangular, not pills).
+- **Selected:** brand border + brand text + brand tint.
+- **Source badges (Learning DB):** flat 2px uppercase mono tags with a tooltip stating exactly what the tag means (Local only / Server only / Synced).
 
 ### Panels / Cards
-- **Corner Style:** 10px radius.
-- **Background:** surface-1 with a subtle scanline texture overlay (`.panel::before`, pointer-events none).
-- **Border:** 1px hairline.
-- **Head:** surface-2 background, hairline bottom border, mono uppercase title, and a rotated-square corner tick.
+- **Corner Style:** 4px radius.
+- **Background:** `--bg-1`, 1px hairline, no texture overlay.
+- **Head:** `--bg-2`, hairline bottom, a flat 6x6 brand marker (not a glyph), sentence-case sans title.
 - **Internal Padding:** 16px.
 
+### Collapsible sections (Diagnosis)
+Flat header bar (`--bg-2`, hover `--bg-3`) with a rotating SVG chevron, a mono count badge, and a `grid-template-rows: 0fr -> 1fr` reveal (~220ms). Expansion state is per session.
+
 ### Inputs / Fields
-- **Style:** surface-2 background, 1px hairline border, 8px radius, mono text.
-- **Focus:** accent border + soft green ring (`box-shadow: 0 0 0 2px rgba(46,230,168,0.35)`), no default outline.
-- **Placeholder:** console-ink-faint, ends with ellipsis `…`.
+- **Style:** `--bg-2` fill, 1px hairline, 4px radius, mono text.
+- **Focus:** brand border + soft brand ring (`box-shadow: 0 0 0 2px var(--brand-glow)`), no default outline.
+- **Placeholder:** `--ink-faint`.
 
-### Navigation (top tab bar)
-- **Style:** mono 12px tabs in the sticky top bar; inactive = dim, active = phosphor-green with a 2px bottom accent underline. Height ~64px, one line at desktop. Uses ARIA tab semantics.
+### Navigation
+- **Top bar:** sticky, `--bg-1`, hairline bottom; mono 12px tabs, active tab gets brand text plus a 2px brand underline. Holds the mode toggle and the Assistant toggle on the right.
+- **Sub-tabs:** sticky below the topbar (offset via the measured `--topbar-h`), sans 12.5px, active underline in brand, `--bg-0` background so content scrolls beneath.
 
-### Signature Component: The Cause Tree
-The ranked-diagnosis visual: each possible cause is a horizontal bar whose width encodes likelihood, colored by confidence band (green → amber → red), with a mono percentage. Below it, a cause-tree list ties each cause to its category. This is the signature "explainable AI" moment and must stay data-first: numbers in tabular mono, bars animating via `transform: scaleX` (not width).
+### Signature components
+- **Cause bars:** horizontal likelihood bars using the `--data-viz` ramp (deep to bright as confidence rises), mono percentage, animating via `transform: scaleX` (never width).
+- **Quality stars:** `--data-viz-2` stars plus an auto-scaled `/5` readout per metric.
+- **Related-cases timeline:** a proportional real-date rail with clickable nodes; brand fill for cases confirmed as the current top cause, `--bg-3` with a hairline for the rest.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep phosphor-green as the single accent; use amber/red only for semantic status and blue only for the user chat.
+- **Do** keep a single accent for brand/interactive; use status hues only for status and the `--data-viz` ramp for charts.
 - **Do** set every numeric readout in mono with `tabular-nums`.
-- **Do** animate bars and reveals with `transform`/`opacity` only (scaleX), and honor `prefers-reduced-motion`.
+- **Do** animate `transform`/`opacity` only (e.g. `scaleX` bars), and honor `prefers-reduced-motion`.
 - **Do** show visible `:focus-visible` rings on all interactive controls.
-- **Do** keep the flat, tonal, hairline-separated surface model; no decorative drop shadows.
+- **Do** keep the flat, tonal, hairline-separated surface model; separation comes from tone and borders.
+- **Do** keep text and borders inside the documented tokens and scales.
 
 ### Don't:
-- **Don't** add a second accent color or neon glows; the phosphor green is the whole palette's voice.
-- **Don't** animate `width`/`height` (layout thrash); use transform.
-- **Don't** use thick colored side-borders on cards or bubbles (reads as an AI tell); use tinted backgrounds and full hairlines instead.
-- **Don't** switch themes between sections; the page is dark-mode-only and locked.
-- **Don't** hide focus outlines or ship pill-shaped containers for standard cards.
+- **Don't** add a second accent, neon glows, gradients, or decorative drop shadows.
+- **Don't** animate `width`/`height` (layout thrash); use transforms.
+- **Don't** use thick colored side-borders on cards or bubbles; use tinted backgrounds and full hairlines.
+- **Don't** switch palettes per section; light and dark are two modes of the same Steel Blue system, toggled once for the whole console.
+- **Don't** use mono for section titles or body prose.
+- **Don't** hide focus outlines, ship pill-shaped containers for cards, or use em-dashes in visible copy.

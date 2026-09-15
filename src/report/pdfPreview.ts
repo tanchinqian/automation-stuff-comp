@@ -1,5 +1,6 @@
 import { el, button } from '../ui/dom';
 import { buildReportPdf, previewPdfUrl, type ReportData } from './pdfReport';
+import { getPdfFonts } from './pdfFonts';
 
 /**
  * Open a modal preview of a built report. The embedded iframe shows the PDF and
@@ -7,48 +8,52 @@ import { buildReportPdf, previewPdfUrl, type ReportData } from './pdfReport';
  * releases the blob URL.
  */
 export function openPdfPreview(data: ReportData, fileName: string, host: HTMLElement = document.body): void {
-  const { url, revoke } = previewPdfUrl(data);
+  void (async () => {
+    // embed Inter when available; falls back to Helvetica silently
+    const fonts = await getPdfFonts();
+    const { url, revoke } = previewPdfUrl(data, fonts);
 
-  const overlay = el('div', 'pdf-modal');
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Report preview');
+    const overlay = el('div', 'pdf-modal');
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Report preview');
 
-  const panel = el('div', 'pdf-modal-panel');
-  const head = el('div', 'pdf-modal-head');
-  head.appendChild(el('span', 'pdf-modal-title', 'Report preview'));
-  const closeX = button('Close', 'btn sm ghost');
-  head.appendChild(closeX);
-  panel.appendChild(head);
+    const panel = el('div', 'pdf-modal-panel');
+    const head = el('div', 'pdf-modal-head');
+    head.appendChild(el('span', 'pdf-modal-title', 'Report preview'));
+    const closeX = button('Close', 'btn sm ghost');
+    head.appendChild(closeX);
+    panel.appendChild(head);
 
-  const frame = document.createElement('iframe');
-  frame.className = 'pdf-frame';
-  frame.title = 'Report preview';
-  frame.src = url;
-  panel.appendChild(frame);
+    const frame = document.createElement('iframe');
+    frame.className = 'pdf-frame';
+    frame.title = 'Report preview';
+    frame.src = url;
+    panel.appendChild(frame);
 
-  const actions = el('div', 'pdf-modal-actions');
-  const download = button('Download PDF', 'btn primary', () =>
-    buildReportPdf(data).save(fileName));
-  const close = button('Close', 'btn ghost');
-  actions.appendChild(download);
-  actions.appendChild(close);
-  panel.appendChild(actions);
+    const actions = el('div', 'pdf-modal-actions');
+    const download = button('Download PDF', 'btn primary', () =>
+      buildReportPdf(data, fonts).save(fileName));
+    const close = button('Close', 'btn ghost');
+    actions.appendChild(download);
+    actions.appendChild(close);
+    panel.appendChild(actions);
 
-  overlay.appendChild(panel);
-  host.appendChild(overlay);
+    overlay.appendChild(panel);
+    host.appendChild(overlay);
 
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') dismiss();
-  }
-  function dismiss() {
-    document.removeEventListener('keydown', onKey);
-    overlay.remove();
-    revoke();
-  }
-  closeX.onclick = dismiss;
-  close.onclick = dismiss;
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
-  document.addEventListener('keydown', onKey);
-  closeX.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') dismiss();
+    }
+    function dismiss() {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      revoke();
+    }
+    closeX.onclick = dismiss;
+    close.onclick = dismiss;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
+    document.addEventListener('keydown', onKey);
+    closeX.focus();
+  })();
 }

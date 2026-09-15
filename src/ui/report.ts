@@ -1,10 +1,14 @@
 import { appState } from './state';
 import { clear, el, panel, button } from './dom';
 import { buildReportPdf, type ReportData } from '../report/pdfReport';
-import { switchTab } from './troubleshoot';
+import { switchWorkbenchView } from './nav';
 import { loadAllCases, caseToReportData } from './database';
-import { getSimilarCases } from '../api/pipeline';
+import { BASE_URL, getSimilarCases, updateCase as apiUpdateCase } from '../api/pipeline';
+import { upsertCase, patchCase, type CaseReportData } from '../db/caseDB';
+import { fetchCaseImage, legsFromAnalysis } from '../report/caseImage';
+import { getPdfFonts } from '../report/pdfFonts';
 import type { ScoredCause } from '../engine/scorer';
+import type { CauseId, DefectId } from '../engine/types';
 
 // ---------------------------------------------------------------------------
 // Local state (kept out of appState so it never pollutes the live session)
@@ -66,6 +70,84 @@ function lsSet(key: string, value: string): void {
   try { localStorage.setItem(key, value); } catch { /* ignore */ }
 }
 
+function blankForm(): ReportFormData {
+  return {
+    employeeName: appState.employeeName ?? lsGet(LS_KEYS.employeeName!) ?? '',
+    employeeId: appState.employeeId ?? lsGet(LS_KEYS.employeeId!) ?? '',
+    machineId: appState.machineId ?? lsGet(LS_KEYS.machineId!) ?? '',
+    affectedCount: appState.affectedCount ?? '',
+    d3Status: '', d3Action: '', d3CompletedBy: '', d3CompletedAt: '',
+    d4Status: '', d4Method: '',
+    d5Status: '', d5TargetDate: '', d5Responsible: '',
+    d6Action: '', d6Status: '', d6Verified: '',
+    d7Notes: '',
+    confirmedCause: '',
+    closedBy: appState.closedBy ?? '',
+    closedDate: appState.closedDate ?? '',
+  };
+}
+
+// Module-level so an incidental re-render of the pane rebuilds the DOM from the
+// current values instead of wiping what the user typed. Reset only on an
+// explicit source change, a past-case load, or a genuinely new session.
+let reportForm: ReportFormData = blankForm();
+
+/** Lightweight counts/source refresh, wired up by renderReportTab(). */
+let mountedRefresh: (() => void) | null = null;
+/** Full reset + rebuild of the mounted pane, if any. */
+let mountedReset: (() => void) | null = null;
+
+/** Reset the report form (called when a new diagnosis session starts). */
+export function resetReportForm(): void {
+  reportForm = blankForm();
+  mountedReset?.();
+}
+
+export function refreshReportTab(): void {
+  mountedRefresh?.();
+}
+
+const newCaseId = (): string => {
+  const raw = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return raw.replace(/-/g, '').slice(0, 12);
+};
+
+/**
+ * The current report form mapped to the case-record shape (`report_data`),
+ * with empty fields dropped. Returns null when nothing has been filled in.
+ */
+export function reportDataSnapshot(): CaseReportData | null {
+  const f = reportForm;
+  const out: Record<string, string> = {};
+  const put = (key: string, value: string | undefined): void => {
+    const v = (value ?? '').trim();
+    if (v) out[key] = v;
+  };
+  put('employeeName', f.employeeName);
+  put('employeeId', f.employeeId);
+  put('machineId', f.machineId);
+  put('affectedCount', f.affectedCount);
+  put('d3Status', f.d3Status);
+  put('d3Action', f.d3Action);
+  put('d3CompletedBy', f.d3CompletedBy);
+  put('d3CompletedAt', f.d3CompletedAt);
+  put('d4Status', f.d4Status);
+  put('d4Method', f.d4Method);
+  put('d5Status', f.d5Status);
+  put('d5TargetDate', f.d5TargetDate);
+  put('d5Responsible', f.d5Responsible);
+  put('d6Status', f.d6Status);
+  put('d6Action', f.d6Action);
+  put('d6VerifiedEffective', f.d6Verified);
+  put('notes', f.d7Notes);
+  put('confirmedCause', f.confirmedCause);
+  put('closedBy', f.closedBy);
+  put('closedDate', f.closedDate);
+  return Object.keys(out).length ? (out as CaseReportData) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Tab renderer
 // ---------------------------------------------------------------------------
@@ -82,7 +164,9 @@ export function renderReportTab(host: HTMLElement): void {
   let allCases: CaseRow[] = [];
   let selectedCase: CaseRow | null = null;
   let useCurrent = !!appState.lastDiagnosis;
-  let form: ReportFormData = blankForm();
+  // alias onto the module-level form so typed values survive re-renders
+  let form = reportForm;
+  const setForm = (next: ReportFormData): void => { reportForm = next; form = next; };
 
   // Source header
   const sourceBox = el('div', 'report-source');
@@ -110,33 +194,31 @@ export function renderReportTab(host: HTMLElement): void {
   // Actions
   const row = el('div', 'freetext-row');
   const fillBtn = button('Fill sample', 'btn ghost', fillSampleReport);
+  const saveDetailsBtn = button('Save report details', 'btn ghost', () => { void saveReportDetails(); });
   const downloadBtn = button('Download Report', 'btn primary');
-  const backBtn = button('Back to diagnosis', 'btn ghost', () => switchTab('troubleshoot'));
+  const backBtn = button('Back to diagnosis', 'btn ghost', () => switchWorkbenchView('inspect'));
   row.appendChild(fillBtn);
+  row.appendChild(saveDetailsBtn);
   row.appendChild(downloadBtn);
   row.appendChild(backBtn);
   body.appendChild(row);
 
+  const reportStatus = el('div', 'case-note');
+  reportStatus.hidden = true;
+  body.appendChild(reportStatus);
+
+  let statusTimer: number | undefined;
+  const setStatus = (text: string, warn = false): void => {
+    reportStatus.textContent = text;
+    reportStatus.classList.toggle('warn', warn);
+    reportStatus.hidden = false;
+    window.clearTimeout(statusTimer);
+    statusTimer = window.setTimeout(() => { reportStatus.hidden = true; }, 6000);
+  };
+
   // ------------------------------------------------------------------
   // Helpers
   // ------------------------------------------------------------------
-  function blankForm(): ReportFormData {
-    return {
-      employeeName: appState.employeeName ?? lsGet(LS_KEYS.employeeName!) ?? '',
-      employeeId: appState.employeeId ?? lsGet(LS_KEYS.employeeId!) ?? '',
-      machineId: appState.machineId ?? lsGet(LS_KEYS.machineId!) ?? '',
-      affectedCount: appState.affectedCount ?? '',
-      d3Status: '', d3Action: '', d3CompletedBy: '', d3CompletedAt: '',
-      d4Status: '', d4Method: '',
-      d5Status: '', d5TargetDate: '', d5Responsible: '',
-      d6Action: '', d6Status: '', d6Verified: '',
-      d7Notes: '',
-      confirmedCause: '',
-      closedBy: appState.closedBy ?? '',
-      closedDate: appState.closedDate ?? '',
-    };
-  }
-
   const sourceBase = (): ReportData | null => {
     if (useCurrent) {
       if (!appState.lastDiagnosis) return null;
@@ -146,6 +228,7 @@ export function renderReportTab(host: HTMLElement): void {
         quality: appState.lastImage?.quality,
         imageLabel: appState.lastImage?.label,
         imageUrl: appState.lastImage?.imageUrl,
+        imageFormat: appState.lastImage?.imageUrl ? 'PNG' : undefined,
         engineLabel: 'Gemini API (chat) + YOLOv8n + MobileNetV2 (vision)',
         reportId: appState.reportId,
         containmentVerified: false,
@@ -215,10 +298,37 @@ export function renderReportTab(host: HTMLElement): void {
 
   // Pre-fill editable fields from a selected past case (Change 1)
   const applyCaseDefaults = () => {
-    if (!useCurrent && selectedCase) {
-      form.d7Notes = selectedCase.notes ?? '';
-      form.confirmedCause = selectedCase.resolvedCause ? humanize(selectedCase.resolvedCause) : '';
+    if (useCurrent || !selectedCase) return;
+    const rd = selectedCase.reportData;
+    if (rd) {
+      // the case carries its own saved report fields - these win over the
+      // browser's localStorage defaults, which are for new reports only
+      form.employeeName = rd.employeeName ?? '';
+      form.employeeId = rd.employeeId ?? '';
+      form.machineId = rd.machineId ?? '';
+      form.affectedCount = rd.affectedCount ?? '';
+      form.d3Status = rd.d3Status ?? '';
+      form.d3Action = rd.d3Action ?? '';
+      form.d3CompletedBy = rd.d3CompletedBy ?? '';
+      form.d3CompletedAt = rd.d3CompletedAt ?? '';
+      form.d4Status = rd.d4Status ?? '';
+      form.d4Method = rd.d4Method ?? '';
+      form.d5Status = rd.d5Status ?? '';
+      form.d5TargetDate = rd.d5TargetDate ?? '';
+      form.d5Responsible = rd.d5Responsible ?? '';
+      form.d6Status = rd.d6Status ?? '';
+      form.d6Action = rd.d6Action ?? '';
+      form.d6Verified = rd.d6VerifiedEffective ?? '';
+      form.d7Notes = rd.notes ?? '';
+      form.confirmedCause = rd.confirmedCause
+        ?? (selectedCase.resolvedCause ? humanize(selectedCase.resolvedCause) : '');
+      form.closedBy = rd.closedBy ?? '';
+      form.closedDate = rd.closedDate ?? '';
+      return;
     }
+    // legacy records (no report_data): degrade to today's behaviour
+    form.d7Notes = selectedCase.notes ?? '';
+    form.confirmedCause = selectedCase.resolvedCause ? humanize(selectedCase.resolvedCause) : '';
   };
 
   // ------------------------------------------------------------------
@@ -388,7 +498,7 @@ export function renderReportTab(host: HTMLElement): void {
       input.addEventListener('change', () => {
         useCurrent = value === 'current';
         if (!useCurrent && allCases.length) selectedCase = allCases[0];
-        form = blankForm();
+        setForm(blankForm());
         applyCaseDefaults();
         renderSourceBox();
         buildForm();
@@ -411,7 +521,7 @@ export function renderReportTab(host: HTMLElement): void {
     } else {
       select.innerHTML = allCases.map((c, i) => {
         const cause = c.resolvedCause ? `✓ ${humanize(c.resolvedCause)}` : 'open';
-        return `<option value="${i}">${fmtDate(c.timestamp)} - ${c.defectLabel ?? 'Unknown'} - ${cause}</option>`;
+        return `<option value="${i}">${c.idLabel} - ${fmtDate(c.timestamp)} - ${c.defectLabel ?? 'Unknown'} - ${cause}</option>`;
       }).join('');
       const idx = selectedCase ? allCases.indexOf(selectedCase) : 0;
       select.value = String(idx >= 0 ? idx : 0);
@@ -420,7 +530,7 @@ export function renderReportTab(host: HTMLElement): void {
       const idx = Number(select.value);
       if (!Number.isNaN(idx) && allCases[idx]) {
         selectedCase = allCases[idx];
-        form = blankForm();
+        setForm(blankForm());
         applyCaseDefaults();
         buildForm();
         updateSimilar();
@@ -453,11 +563,112 @@ export function renderReportTab(host: HTMLElement): void {
   // ------------------------------------------------------------------
   // Actions
   // ------------------------------------------------------------------
-  downloadBtn.onclick = () => {
+  /** collect() plus (for past cases) the board thumbnail as a data URL. */
+  const collectWithImage = async (): Promise<ReportData | null> => {
     const data = collect();
-    if (!data) return;
-    buildReportPdf(data).save(`${data.reportId}.pdf`);
+    if (!data) return null;
+    if (!data.imageUrl && !useCurrent && selectedCase?.imagePath) {
+      // redraw the saved YOLO detections onto the thumbnail so the PDF matches the panel
+      const img = await fetchCaseImage(selectedCase.imagePath, legsFromAnalysis(selectedCase.analysisRaw));
+      if (img) {
+        data.imageUrl = img.url;
+        data.imageFormat = img.format;
+        data.imageLabel = img.label;
+      }
+    }
+    return data;
   };
+
+  downloadBtn.onclick = () => {
+    void (async () => {
+      const data = await collectWithImage();
+      if (!data) return;
+      const fonts = await getPdfFonts();
+      buildReportPdf(data, fonts).save(`${data.reportId}.pdf`);
+    })();
+  };
+
+  /** Create the server record for the current session, with its report data. */
+  async function postReportCase(caseId: string, rd: CaseReportData): Promise<void> {
+    const diag = appState.lastDiagnosis;
+    const causes = diag ? diag.defect.causes : [];
+    const defectLabel = defectType();
+    const res = await fetch(`${BASE_URL}/cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        case_id: caseId,
+        image_path: appState.lastImage?.analysis?.image_path ?? 'manual-entry',
+        analysis_result: appState.lastImage?.analysis ?? {},
+        ranked_causes: causes.map((c) => ({ cause: c.causeId, score: c.score, reasons: c.reasons })),
+        action_plan: (appState.lastActions ?? []).map((a) => a.title),
+        engineer_feedback: {
+          actual_cause: appState.lastConfirmedCause ?? null,
+          confirmed_defects: defectLabel ? [defectLabel] : [],
+          notes: rd.notes ?? null,
+        },
+        report_data: rd,
+      }),
+    });
+    if (!res.ok) throw new Error(`case create failed: ${res.status}`);
+  }
+
+  /** Persist the current report form into the case record (local + server). */
+  async function saveReportDetails(): Promise<void> {
+    const rd = reportDataSnapshot();
+    if (!rd) {
+      setStatus('Fill in some report fields first.');
+      return;
+    }
+    saveDetailsBtn.disabled = true;
+    saveDetailsBtn.textContent = 'Saving…';
+    try {
+      if (!useCurrent && selectedCase) {
+        if (selectedCase.localId != null) await patchCase(selectedCase.localId, { reportData: rd });
+        if (selectedCase.serverCaseId) await apiUpdateCase(selectedCase.serverCaseId, { report_data: rd });
+        setStatus(`Report details saved to case ${selectedCase.idLabel}.`);
+      } else {
+        // current session: patch the existing record, or create one
+        if (appState.caseRecordId != null) {
+          await patchCase(
+            appState.caseRecordId,
+            rd.notes ? { reportData: rd, notes: rd.notes } : { reportData: rd },
+          );
+        } else {
+          const diag = appState.lastDiagnosis;
+          const causes = diag ? diag.defect.causes : [];
+          const localId = await upsertCase({
+            timestamp: Date.now(),
+            material: appState.material ?? '',
+            defectId: (diag?.defect.defectId ?? 'inconsistent-volume') as DefectId,
+            symptoms: [...appState.symptoms],
+            topCause: (causes[0]?.causeId ?? 'equipment-inspection') as CauseId,
+            notes: rd.notes,
+            rankedCauses: causes.map((c) => ({ causeId: c.causeId, score: c.score })),
+            actionPlan: (appState.lastActions ?? []).map((a) => a.title),
+            reportData: rd,
+          });
+          appState.caseRecordId = localId;
+        }
+        const caseId = appState.caseId ?? newCaseId();
+        appState.caseId = caseId;
+        try {
+          await apiUpdateCase(caseId, { report_data: rd });
+        } catch {
+          // no server record for this session yet - create it
+          await postReportCase(caseId, rd);
+        }
+        setStatus('Report details saved to the current case.');
+        refreshReportTab();
+      }
+    } catch (err) {
+      console.error('save report details failed', err);
+      setStatus('Could not save the report details. See console for details.', true);
+    } finally {
+      saveDetailsBtn.disabled = false;
+      saveDetailsBtn.textContent = 'Save report details';
+    }
+  }
 
   // Dev/test aid: fill every report field with a realistic sample (Change: demo)
   function fillSampleReport() {
@@ -503,12 +714,31 @@ export function renderReportTab(host: HTMLElement): void {
       return;
     }
     if (!selectedCase && allCases.length) selectedCase = allCases[0];
-    form = blankForm();
+    setForm(blankForm());
     applyCaseDefaults();
     renderSourceBox();
     buildForm();
     updateSimilar();
   }).catch(() => { /* keep current-session mode */ });
+
+  // Lightweight refresh: reload the case list + counts without touching the
+  // form or rebuilding the fields. Also used on tab-visibility changes and by
+  // refreshReportTab() from other modules.
+  const refreshCounts = () => {
+    loadAllCases().then((cases) => {
+      allCases = cases;
+      if (!useCurrent && !selectedCase && allCases.length) selectedCase = allCases[0];
+      renderSourceBox();
+      updateSimilar();
+    }).catch(() => { /* ignore */ });
+  };
+  mountedRefresh = refreshCounts;
+  mountedReset = () => {
+    // new session: blank the fields and rebuild (the source selector stays as-is)
+    setForm(blankForm());
+    buildForm();
+    updateSimilar();
+  };
 
   // Reload the case list when this tab becomes visible (server may have been
   // starting when the page first loaded).
@@ -518,14 +748,7 @@ export function renderReportTab(host: HTMLElement): void {
   let wasHidden = pane.classList.contains('hidden');
   const observer = new MutationObserver(() => {
     const hidden = pane.classList.contains('hidden');
-    if (wasHidden && !hidden) {
-      loadAllCases().then((cases) => {
-        allCases = cases;
-        if (!useCurrent && !selectedCase && allCases.length) selectedCase = allCases[0];
-        renderSourceBox();
-        updateSimilar();
-      }).catch(() => { /* ignore */ });
-    }
+    if (wasHidden && !hidden) refreshCounts();
     wasHidden = hidden;
   });
   observer.observe(pane, { attributes: true, attributeFilter: ['class'] });

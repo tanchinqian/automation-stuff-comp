@@ -36,22 +36,148 @@ export interface InspectionPanelHandle {
 // Good = phosphor green (accent). Defects = semantic red. Misalignment = amber.
 // Blue is reserved for the user chat, so it is not used on the overlay.
 const CLASS_COLORS: Record<string, string> = {
-  good: '#2ee6a8',
+  good: '#5a9e6f',
   'less-paste': '#ff5f6d',
   missing: '#ff5f6d',
   bridging: '#ff5f6d',
   misalignment: '#ffb64d',
 };
 
+// ---------------------------------------------------------------------------
+// Star-rating calibration (presentation only).
+//
+// These bands control how raw defect ratios map to the 1-5 star sub-scores in
+// the Image Inspection panel. They are read fresh on every analysis and do NOT
+// touch the rule engine, cause ranking, the X/100 score, saved cases, or the
+// learning database.
+// ---------------------------------------------------------------------------
+export interface StarBands {
+  /** ratio at or below this scores 4 stars */
+  t4: number;
+  /** ratio at or below this scores 3 stars */
+  t3: number;
+  /** ratio at or below this scores 2 stars */
+  t2: number;
+}
+
+export interface RiskWeights {
+  bridging: number;
+  flagged: number;
+  lessPaste: number;
+}
+
+export interface StarThresholds {
+  shape: StarBands;
+  volume: StarBands;
+  position: StarBands;
+  risk: { bands: StarBands; weights: RiskWeights };
+}
+
+export const DEFAULT_STAR_THRESHOLDS: StarThresholds = {
+  shape: { t4: 0.05, t3: 0.15, t2: 0.3 },
+  volume: { t4: 0.05, t3: 0.15, t2: 0.3 },
+  position: { t4: 0.05, t3: 0.15, t2: 0.3 },
+  risk: {
+    bands: { t4: 0.05, t3: 0.15, t2: 0.3 },
+    weights: { bridging: 0.4, flagged: 0.4, lessPaste: 0.2 },
+  },
+};
+
+export const STAR_THRESHOLDS_KEY = 'calibration_star_thresholds';
+
+const cloneThresholds = (t: StarThresholds): StarThresholds => ({
+  shape: { ...t.shape },
+  volume: { ...t.volume },
+  position: { ...t.position },
+  risk: { bands: { ...t.risk.bands }, weights: { ...t.risk.weights } },
+});
+
+const clampRatio = (value: unknown, fallback: number): number =>
+  (typeof value === 'number' && Number.isFinite(value))
+    ? Math.min(1, Math.max(0, value))
+    : fallback;
+
+/** Validate a stored payload; returns null when it is unusable. */
+function parseThresholds(raw: string | null): StarThresholds | null {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw) as Partial<StarThresholds>;
+    if (!o || typeof o !== 'object') return null;
+    const d = DEFAULT_STAR_THRESHOLDS;
+    const bands = (b: Partial<StarBands> | undefined, fallback: StarBands): StarBands => ({
+      t4: clampRatio(b?.t4, fallback.t4),
+      t3: clampRatio(b?.t3, fallback.t3),
+      t2: clampRatio(b?.t2, fallback.t2),
+    });
+    return {
+      shape: bands(o.shape, d.shape),
+      volume: bands(o.volume, d.volume),
+      position: bands(o.position, d.position),
+      risk: {
+        bands: bands(o.risk?.bands, d.risk.bands),
+        weights: {
+          bridging: clampRatio(o.risk?.weights?.bridging, d.risk.weights.bridging),
+          flagged: clampRatio(o.risk?.weights?.flagged, d.risk.weights.flagged),
+          lessPaste: clampRatio(o.risk?.weights?.lessPaste, d.risk.weights.lessPaste),
+        },
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Live thresholds; read fresh by every analysis. */
+export let starThresholds: StarThresholds = cloneThresholds(DEFAULT_STAR_THRESHOLDS);
+
+/** Read persisted calibration at startup (falls back to defaults). */
+export function loadStarThresholds(): void {
+  try {
+    const parsed = parseThresholds(localStorage.getItem(STAR_THRESHOLDS_KEY));
+    if (parsed) starThresholds = parsed;
+  } catch {
+    // storage unavailable - keep defaults
+  }
+}
+
+/** Apply and persist calibration values (used by the Calibration panel). */
+export function applyStarThresholds(next: StarThresholds): void {
+  starThresholds = cloneThresholds(next);
+  try {
+    localStorage.setItem(STAR_THRESHOLDS_KEY, JSON.stringify(starThresholds));
+  } catch {
+    // storage unavailable - the in-memory value still applies
+  }
+}
+
+/** Revert to the original defaults and drop the stored override. */
+export function resetStarThresholds(): void {
+  starThresholds = cloneThresholds(DEFAULT_STAR_THRESHOLDS);
+  try {
+    localStorage.removeItem(STAR_THRESHOLDS_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Bands must ascend (t4 <= t3 <= t2) or the star mapping inverts. */
+export function starThresholdsAscend(t: StarThresholds): boolean {
+  const ok = (b: StarBands): boolean => b.t4 <= b.t3 && b.t3 <= b.t2;
+  return ok(t.shape) && ok(t.volume) && ok(t.position) && ok(t.risk.bands);
+}
+
+loadStarThresholds();
+
 /**
  * Map a defect proportion (0-1, higher = worse) to a whole-star 0-5 score so
  * severity matters: 1 bad leg out of 40 must not score the same as 10 out of 40.
+ * Exported so the calibration mapping can be verified outside the DOM.
  */
-function severityStars(ratio: number): number {
+export function severityStars(ratio: number, bands: StarBands): number {
   if (ratio <= 0) return 5;
-  if (ratio <= 0.05) return 4;
-  if (ratio <= 0.15) return 3;
-  if (ratio <= 0.3) return 2;
+  if (ratio <= bands.t4) return 4;
+  if (ratio <= bands.t3) return 3;
+  if (ratio <= bands.t2) return 2;
   return 1;
 }
 
@@ -331,9 +457,9 @@ export function createInspectionPanel(opts: {
     engineChip.classList.toggle('stub', lastEngine === 'classical');
     const engineTag =
       lastEngine === 'api'
-        ? '<b style="color:var(--accent)">YOLOv8s + MobileNetV2</b>'
+        ? '<b style="color:var(--brand)">YOLOv8s + MobileNetV2</b>'
         : lastEngine === 'yolo'
-          ? '<b style="color:var(--accent)">YOLOv8s</b>'
+          ? '<b style="color:var(--brand)">YOLOv8s</b>'
           : '<b style="color:var(--warn)">classical</b>';
 
     // ground-truth comparison tag (real boards only)
@@ -362,12 +488,16 @@ export function createInspectionPanel(opts: {
       const bridgingRatio = ds.Bridging / total;
       const lessPasteRatio = ds['Less Paste'] / total;
       const flaggedRatio = lastAnalysis.flagged_legs / total;
-      qShape = severityStars(bridgingRatio);
-      qSize = severityStars(lessPasteRatio);
-      qPosition = severityStars(flaggedRatio);
+      qShape = severityStars(bridgingRatio, starThresholds.shape);
+      qSize = severityStars(lessPasteRatio, starThresholds.volume);
+      qPosition = severityStars(flaggedRatio, starThresholds.position);
       // defect risk blends the other three; bridging and flagged legs weigh
-      // higher because they are more urgent than a paste-volume shortfall
-      qRisk = severityStars(bridgingRatio * 0.4 + flaggedRatio * 0.4 + lessPasteRatio * 0.2);
+      // higher by default because they are more urgent than a paste shortfall
+      const w = starThresholds.risk.weights;
+      qRisk = severityStars(
+        bridgingRatio * w.bridging + flaggedRatio * w.flagged + lessPasteRatio * w.lessPaste,
+        starThresholds.risk.bands,
+      );
     }
 
     if (lastAnalysis) {
@@ -411,7 +541,7 @@ export function createInspectionPanel(opts: {
 
   const panelEl = el('section', 'panel');
   const head = el('div', 'panel-head');
-  head.appendChild(el('span', 'tick'));
+  head.appendChild(el('span', 'panel-mark'));
   head.appendChild(el('span', 'title', 'Image Inspection'));
   const engineChip = el('span', 'live-badge', 'engine: -');
   head.appendChild(engineChip);
@@ -454,7 +584,7 @@ function drawBoardOverlay(canvas: HTMLCanvasElement, board: BoardAnalysis): void
     ctx.strokeStyle = CLASS_COLORS[pad.class] + 'cc';
     ctx.strokeRect(x, y, w, h);
     ctx.fillStyle = CLASS_COLORS[pad.class];
-    ctx.font = 'bold 10px monospace';
+    ctx.font = 'bold 10px "JetBrains Mono", "Cascadia Mono", Consolas, monospace';
     const conf = pad.fillRatio > 0 && pad.fillRatio <= 1 ? ` ${(pad.fillRatio * 100).toFixed(0)}%` : '';
     ctx.fillText(pad.class.replace(/-/g, ' ').toUpperCase() + conf, x + 2, y - 4);
   }
@@ -527,7 +657,7 @@ function analysisToBoard(a: AnalysisResult): BoardAnalysis {
 function drawLegOverlay(canvas: HTMLCanvasElement, legs: LegResult[], scale: number): void {
   const ctx = canvas.getContext('2d')!;
   ctx.lineWidth = 2;
-  ctx.font = 'bold 10px monospace';
+  ctx.font = 'bold 10px "JetBrains Mono", "Cascadia Mono", Consolas, monospace';
   for (const leg of legs) {
     const [x1, y1, x2, y2] = leg.bbox;
     const x = x1 * scale;

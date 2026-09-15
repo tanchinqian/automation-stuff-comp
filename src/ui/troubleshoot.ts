@@ -6,7 +6,8 @@ import { appState, addSymptoms, resetState } from './state';
 import { el, clear, button, panel } from './dom';
 import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
 import { getAllCases, priorOverrides, upsertCase } from '../db/caseDB';
-import { renderReportTab } from './report';
+import { renderReportTab, refreshReportTab, resetReportForm, reportDataSnapshot } from './report';
+import { switchWorkbenchView } from './nav';
 import { createInspectionPanel, type VisionResult } from './vision';
 import { boardClassToSymptoms } from '../vision/qualityScore';
 import { template } from './templates';
@@ -27,6 +28,59 @@ import { renderCaseCardDetail, unifiedFromServerCases, type UnifiedCase } from '
 
 const llm = new LlmRouter();
 
+// ---------------------------------------------------------------------------
+// Assistant drawer (overlay). The state lives at module level so it survives
+// re-renders, and closing the drawer never clears the conversation.
+// ---------------------------------------------------------------------------
+let assistantOpen = false;
+let assistantUnread = false;
+let assistantEscBound = false;
+
+function syncAssistant(): void {
+  const drawer = document.getElementById('chat-drawer');
+  const toggle = document.getElementById('assistant-toggle');
+
+  // The backdrop is only in the DOM while the drawer is open, so a stuck dim
+  // state is structurally impossible even if the CSS fails to load.
+  let backdrop = document.getElementById('chat-backdrop');
+  if (assistantOpen) {
+    if (!backdrop) {
+      backdrop = el('div', 'chat-backdrop');
+      backdrop.id = 'chat-backdrop';
+      backdrop.addEventListener('click', () => closeAssistant());
+      document.body.appendChild(backdrop);
+      // add the class on the next frame so the opacity transition still plays
+      requestAnimationFrame(() => backdrop?.classList.add('open'));
+    }
+  } else if (backdrop) {
+    backdrop.remove();
+  }
+
+  if (drawer && assistantOpen) {
+    // keep the drawer content clear of the sticky topbar (which stays on top)
+    const topbar = document.querySelector('.topbar') as HTMLElement | null;
+    drawer.style.paddingTop = topbar ? `${topbar.offsetHeight}px` : '0px';
+  }
+  drawer?.classList.toggle('open', assistantOpen);
+  drawer?.setAttribute('aria-hidden', String(!assistantOpen));
+  toggle?.classList.toggle('has-unread', assistantUnread && !assistantOpen);
+  toggle?.setAttribute('aria-expanded', String(assistantOpen));
+}
+
+export function openAssistant(): void {
+  assistantOpen = true;
+  assistantUnread = false;
+  syncAssistant();
+}
+export function closeAssistant(): void {
+  assistantOpen = false;
+  syncAssistant();
+}
+export function toggleAssistant(): void {
+  if (assistantOpen) closeAssistant();
+  else openAssistant();
+}
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Create a namespaced SVG element with attributes (there is no SVG helper in dom.ts). */
@@ -39,246 +93,32 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
   return node;
 }
 
-/** One draggable surrounding node in the radial historical-case graph. */
-interface NodeView {
-  case: UnifiedCase;
-  group: SVGGElement;
-  circle: SVGCircleElement;
-  label: SVGTextElement;
-  line: SVGLineElement;
-  slot: number;
-  baseR: number;
+/** One clickable case marker on the related-cases timeline. */
+interface TimelineNode {
+  record: UnifiedCase;
   x: number;
   y: number;
-  r: number;
-  raf: number | null;
+  match: boolean;
 }
 
-const SNAP_MS = 170;
+const DAY_MS = 86_400_000;
 
-/** cubic-bezier(0.16, 1, 0.3, 1) - the app's documented ease-standard curve. */
-function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
-  const ax = 3 * x1 - 3 * x2 + 1;
-  const bx = 3 * x2 - 6 * x1;
-  const cx = 3 * x1;
-  const ay = 3 * y1 - 3 * y2 + 1;
-  const by = 3 * y2 - 6 * y1;
-  const cy = 3 * y1;
-  const sampleX = (t: number): number => ((ax * t + bx) * t + cx) * t;
-  const sampleY = (t: number): number => ((ay * t + by) * t + cy) * t;
-  const sampleDX = (t: number): number => (3 * ax * t + 2 * bx) * t + cx;
-  return (x: number): number => {
-    let t = x;
-    for (let i = 0; i < 8; i++) {
-      const err = sampleX(t) - x;
-      if (Math.abs(err) < 1e-4) break;
-      const d = sampleDX(t);
-      if (Math.abs(d) < 1e-6) break;
-      t -= err / d;
-    }
-    return sampleY(t);
-  };
-}
-const snapEase = cubicBezier(0.16, 1, 0.3, 1);
+const fmtDay = (ms: number): string =>
+  new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 
 /**
- * Inline radial graph: the current diagnosis at the centre, one node per
- * historical case returned by GET /cases/matching, arranged evenly on a
- * circle. Nodes whose confirmed cause matches the current top cause are
- * accent-filled; clicking one opens the shared case-detail panel; dragging
- * one reorders the circle (snapping to the nearest fixed slot, swapping with
- * whichever node occupies it).
+ * Related-cases timeline: one node per matching case, placed at its real date
+ * on a single axis that runs from the oldest case to today (proportional
+ * spacing, no bucketing). Colour marks whether the case was confirmed as the
+ * current top cause; clicking opens the shared case-detail popover. Nodes are
+ * fixed - dragging would misrepresent when a case actually happened.
  */
-function renderHistoricalGraph(
-  host: HTMLElement,
-  defectType: string,
-  topCause: string | null,
-  expected: number,
-): void {
-  const count = Math.max(expected, 1);
-  const radius = count <= 8 ? 120 : count <= 14 ? 145 : 165;
-  const centerR = 11;
-  const pad = 44;
-  const size = 2 * (radius + 10 + pad);
-  const cx = size / 2;
-  const cy = size / 2;
-
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${size} ${size}`,
-    class: 'rc-svg',
-    role: 'img',
-    'aria-label': `Historical cases graph for ${defectType}`,
-  });
-  host.appendChild(svg);
-
-  // soft, low-opacity accent glow used to "lift" the node being dragged
-  const defs = svgEl('defs');
-  const glow = svgEl('filter', {
-    id: 'rc-drag-glow', x: '-60%', y: '-60%', width: '220%', height: '220%',
-  });
-  glow.appendChild(svgEl('feDropShadow', {
-    dx: 0, dy: 0, stdDeviation: 3, 'flood-color': '#2ee6a8', 'flood-opacity': 0.45,
-  }));
-  defs.appendChild(glow);
-  svg.appendChild(defs);
-
-  // centre = current case; pulses (existing .loading animation) while loading
-  const center = svgEl('g', { class: 'rc-center loading' });
-  center.appendChild(svgEl('circle', { cx, cy, r: centerR, class: 'rc-node-current' }));
-  const centerLabel = svgEl('text', {
-    x: cx, y: cy + centerR + 15, class: 'rc-nodelabel rc-current-label', 'text-anchor': 'middle',
-  });
-  centerLabel.textContent = 'Current';
-  center.appendChild(centerLabel);
-  svg.appendChild(center);
-
-  const tip = el('div', 'rc-tip');
-  host.appendChild(tip);
-  const pop = el('div', 'rc-pop');
-  host.appendChild(pop);
-
-  const onDocClick = (e: MouseEvent) => {
-    if (!pop.contains(e.target as Node)) closePop();
-  };
-  function closePop(): void {
-    pop.classList.remove('show');
-    document.removeEventListener('click', onDocClick);
-  }
-
-  const showTip = (ev: MouseEvent, text: string) => {
-    const r = (ev.currentTarget as SVGGElement).getBoundingClientRect();
-    const hr = host.getBoundingClientRect();
-    tip.textContent = text;
-    tip.style.left = `${r.left - hr.left + r.width / 2}px`;
-    tip.style.top = `${r.top - hr.top}px`;
-    tip.classList.add('show');
-  };
-  const hideTip = () => tip.classList.remove('show');
-
-  const openPop = (group: SVGGElement, record: UnifiedCase) => {
-    clear(pop);
-    pop.appendChild(renderCaseCardDetail(record, {
-      matchedBecause: `Matched because: same defect type (${defectType})`,
-    }));
-    const close = button('×', 'rc-close', () => closePop());
-    close.setAttribute('aria-label', 'Close case detail');
-    pop.appendChild(close);
-
-    const r = group.getBoundingClientRect();
-    const hr = host.getBoundingClientRect();
-    pop.style.left = `${r.left - hr.left + r.width / 2}px`;
-    pop.style.top = `${r.top - hr.top + r.height / 2}px`;
-    pop.classList.add('show');
-    setTimeout(() => document.addEventListener('click', onDocClick), 0);
-  };
-
-  // ---- Drag-to-reorder state + geometry helpers ----
-  const nodes: NodeView[] = [];
-  const slotPos: { x: number; y: number }[] = [];
-  let drag: {
-    nv: NodeView;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    startTime: number;
-  } | null = null;
-
-  // write the current (x, y, r) of a node to its circle, label and edge
-  const applyNode = (nv: NodeView): void => {
-    nv.circle.setAttribute('cx', String(nv.x));
-    nv.circle.setAttribute('cy', String(nv.y));
-    nv.circle.setAttribute('r', String(nv.r));
-    nv.label.setAttribute('x', String(nv.x));
-    nv.label.setAttribute('y', String(nv.y + nv.r + 11));
-    nv.line.setAttribute('x2', String(nv.x));
-    nv.line.setAttribute('y2', String(nv.y));
-  };
-
-  // ease the node (circle + label + edge, together) to a target position
-  const tweenPos = (nv: NodeView, tx: number, ty: number, tr: number, dur: number): void => {
-    if (nv.raf) cancelAnimationFrame(nv.raf);
-    const sx = nv.x; const sy = nv.y; const sr = nv.r;
-    const start = performance.now();
-    const step = (now: number) => {
-      const t = Math.min((now - start) / dur, 1);
-      const e = snapEase(t);
-      nv.x = sx + (tx - sx) * e;
-      nv.y = sy + (ty - sy) * e;
-      nv.r = sr + (tr - sr) * e;
-      applyNode(nv);
-      nv.raf = t < 1 ? requestAnimationFrame(step) : null;
-    };
-    nv.raf = requestAnimationFrame(step);
-  };
-
-  // nearest fixed angular slot to an angle (slots are evenly spaced)
-  const nearestSlot = (ang: number): number => {
-    let best = 0;
-    let bestDiff = Infinity;
-    for (let i = 0; i < slotPos.length; i++) {
-      const a = (Math.PI * 2 * i) / slotPos.length - Math.PI / 2;
-      let d = ang - a;
-      d = Math.atan2(Math.sin(d), Math.cos(d)); // normalise to [-pi, pi]
-      const ad = Math.abs(d);
-      if (ad < bestDiff) { bestDiff = ad; best = i; }
-    }
-    return best;
-  };
-
-  // client (screen) coords -> SVG viewBox user units
-  const toSvg = (clientX: number, clientY: number): { x: number; y: number } => {
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return { x: clientX, y: clientY };
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const p = pt.matrixTransform(ctm.inverse());
-    return { x: p.x, y: p.y };
-  };
-
-  const finishDrag = (
-    group: SVGGElement,
-    nv: NodeView,
-    clientX: number,
-    clientY: number,
-    pointerId: number,
-    allowClick: boolean,
-  ): void => {
-    const dt = performance.now() - (drag?.startTime ?? performance.now());
-    const dx = clientX - (drag?.startX ?? clientX);
-    const dy = clientY - (drag?.startY ?? clientY);
-    try { group.releasePointerCapture(pointerId); } catch { /* capture already gone */ }
-    group.classList.remove('dragging');
-    drag = null;
-
-    // a quick, near-stationary press is a click, not a drag
-    if (allowClick && Math.hypot(dx, dy) < 4 && dt < 200) {
-      openPop(group, nv.case);
-      return;
-    }
-
-    const ang = Math.atan2(nv.y - cy, nv.x - cx);
-    const target = nearestSlot(ang);
-    if (target === nv.slot) {
-      // dropped near its own slot - just settle back
-      tweenPos(nv, slotPos[nv.slot].x, slotPos[nv.slot].y, nv.baseR, SNAP_MS);
-      return;
-    }
-    // swap with whichever node currently occupies the target slot
-    const other = nodes.find((n) => n !== nv && n.slot === target);
-    if (other) {
-      other.slot = nv.slot;
-      tweenPos(other, slotPos[other.slot].x, slotPos[other.slot].y, other.baseR, SNAP_MS);
-    }
-    nv.slot = target;
-    tweenPos(nv, slotPos[target].x, slotPos[target].y, nv.baseR, SNAP_MS);
-  };
-
+function renderCaseTimeline(host: HTMLElement, defectType: string, topCause: string | null): void {
   void (async () => {
     let cases: UnifiedCase[];
     try {
       const res = await getMatchingCases(defectType);
-      cases = unifiedFromServerCases(res.cases);
+      cases = unifiedFromServerCases(res.cases).filter((c) => c.timestamp > 0);
     } catch {
       host.remove(); // endpoint unreachable - keep the text summary only
       return;
@@ -287,96 +127,340 @@ function renderHistoricalGraph(
       host.remove();
       return;
     }
-    center.classList.remove('loading');
-
-    // fixed, evenly-spaced angular slots (positions never move; nodes swap)
-    for (let i = 0; i < cases.length; i++) {
-      const a = (Math.PI * 2 * i) / cases.length - Math.PI / 2;
-      slotPos.push({ x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) });
+    // Sparse data: the one-line summary reads better than a two-node timeline.
+    if (cases.length < 3) {
+      host.remove();
+      return;
     }
 
-    const times = cases.map((c) => c.timestamp).filter((t) => t > 0);
-    const maxTs = times.length ? Math.max(...times) : 0;
-    const minTs = times.length ? Math.min(...times) : 0;
-    const span = Math.max(maxTs - minTs, 1);
+    const todayMs = Date.now();
+    const minTs = Math.min(...cases.map((c) => c.timestamp));
+    const domainSpan = todayMs - minTs;
+
+    // geometry (viewBox units; the SVG scales to the container)
+    const W = 460;
+    const H = 80;
+    const padL = 14;
+    const padR = 14;
+    const railY = 50;
+    const plotW = W - padL - padR;
+    const r = 4.5;
+    const xOf = (t: number): number => (domainSpan <= 0
+      ? padL + plotW
+      : padL + Math.min(1, Math.max(0, (t - minTs) / domainSpan)) * plotW);
+
+    // lane assignment: cases on the same / near dates stack upwards so each
+    // node stays visible and clickable instead of overlapping
+    const offsets = [0, -9, -18, -27, -36];
+    const laneLast = offsets.map(() => -Infinity);
     const matchKey = (topCause ?? '').toLowerCase();
+    const nodes: TimelineNode[] = [...cases]
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((c) => {
+        const x = xOf(c.timestamp);
+        let lane = laneLast.findIndex((last) => x - last >= r * 2 + 2);
+        if (lane < 0) lane = laneLast.indexOf(Math.min(...laneLast));
+        laneLast[lane] = x;
+        return {
+          record: c,
+          x,
+          y: railY + offsets[Math.min(lane, offsets.length - 1)],
+          match: !!c.resolvedCause && c.resolvedCause.toLowerCase() === matchKey,
+        };
+      });
 
-    cases.forEach((c, i) => {
-      const pos = slotPos[i];
-      const recency = times.length ? (c.timestamp - minTs) / span : 0.5;
-      const baseR = 5.5 + recency * 2.5;
-      const isMatch = !!c.resolvedCause && c.resolvedCause.toLowerCase() === matchKey;
+    // ---- compact metrics for the info column (all from this payload) ----
+    const total = cases.length;
+    const confirmed = nodes.filter((n) => n.match).length;
+    const confirmedPct = total ? Math.round((confirmed / total) * 100) : 0;
+    const spanDays = Math.max(1, Math.round((todayMs - minTs) / DAY_MS));
+    const recentCount = cases.filter((c) => todayMs - c.timestamp <= 30 * DAY_MS).length;
+
+    const causeCounts = new Map<string, number>();
+    for (const c of cases) {
+      if (c.resolvedCause) causeCounts.set(c.resolvedCause, (causeCounts.get(c.resolvedCause) ?? 0) + 1);
+    }
+    const topCauses = [...causeCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const recentCases = [...cases].sort((a, b) => b.timestamp - a.timestamp).slice(0, 3);
+
+    // legend (single compact row above the rail, hint folded in)
+    const legend = el('div', 'tl-legend');
+    const legendKey = (swatch: string, text: string) => {
+      const k = el('span', 'tl-key');
+      k.appendChild(el('span', `tl-swatch ${swatch}`));
+      const label = el('span', 'tl-key-label', text);
+      label.title = text;
+      k.appendChild(label);
+      legend.appendChild(k);
+    };
+    legendKey('confirmed', topCause ? `Confirmed: ${topCause}` : 'Confirmed as top cause');
+    legendKey('other', `Other ${defectType} cases`);
+    legend.appendChild(el('span', 'tl-hint', 'Click a point for details'));
+
+    const svg = svgEl('svg', {
+      viewBox: `0 0 ${W} ${H}`,
+      class: 'tl-svg',
+      role: 'img',
+      'aria-label': `${defectType} cases from ${fmtDay(minTs)} to today`,
+    });
+
+    // rail + today marker at the right end, level with the nodes
+    svg.appendChild(svgEl('line', { x1: padL, y1: railY, x2: padL + plotW, y2: railY, class: 'tl-rail' }));
+    svg.appendChild(svgEl('line', { x1: padL + plotW, y1: railY - 6, x2: padL + plotW, y2: railY + 6, class: 'tl-today' }));
+
+    // date ticks: evenly spaced across the real span; "Today" anchors the right
+    const fmtTick = (ms: number): string => new Date(ms).toLocaleDateString(
+      'en-GB',
+      domainSpan > 300 * DAY_MS ? { month: 'short', year: '2-digit' } : { day: '2-digit', month: 'short' },
+    );
+    for (const frac of [0, 1 / 5, 2 / 5, 3 / 5, 4 / 5]) {
+      const x = padL + frac * plotW;
+      svg.appendChild(svgEl('line', { x1: x, y1: railY - 3, x2: x, y2: railY + 3, class: 'tl-tick' }));
+      const label = svgEl('text', {
+        x,
+        y: railY + 16,
+        class: 'tl-label',
+        'text-anchor': frac === 0 ? 'start' : 'middle',
+      });
+      label.textContent = fmtTick(minTs + frac * domainSpan);
+      svg.appendChild(label);
+    }
+    const todayLabel = svgEl('text', {
+      x: padL + plotW, y: railY + 16, class: 'tl-today-label', 'text-anchor': 'end',
+    });
+    todayLabel.textContent = 'Today';
+    svg.appendChild(todayLabel);
+
+    // tooltip + popover (same pattern as the original case graph)
+    const tip = el('div', 'tl-tip');
+    host.appendChild(tip);
+    const pop = el('div', 'tl-pop');
+    host.appendChild(pop);
+
+    const onDocClick = (e: MouseEvent) => {
+      if (!pop.contains(e.target as Node)) closePop();
+    };
+    function closePop(): void {
+      pop.classList.remove('show');
+      document.removeEventListener('click', onDocClick);
+    }
+    const showTip = (ev: MouseEvent, text: string) => {
+      const box = (ev.currentTarget as SVGGElement).getBoundingClientRect();
+      const hostBox = host.getBoundingClientRect();
+      tip.textContent = text;
+      tip.style.left = `${box.left - hostBox.left + box.width / 2}px`;
+      tip.style.top = `${box.top - hostBox.top}px`;
+      tip.classList.add('show');
+    };
+    const hideTip = () => tip.classList.remove('show');
+
+    const openPop = (anchor: Element, record: UnifiedCase) => {
+      clear(pop);
+      pop.appendChild(renderCaseCardDetail(record, {
+        matchedBecause: `Matched because: same defect type (${defectType})`,
+      }));
+      const close = button('×', 'tl-close', () => closePop());
+      close.setAttribute('aria-label', 'Close case detail');
+      pop.appendChild(close);
+
+      const box = anchor.getBoundingClientRect();
+      const hostBox = host.getBoundingClientRect();
+      // clamp so a chip near either edge keeps the panel inside the accordion
+      const halfW = Math.max(0, Math.min(150, hostBox.width / 2 - 8));
+      const anchorX = box.left - hostBox.left + box.width / 2;
+      pop.style.left = `${Math.min(Math.max(anchorX, halfW), hostBox.width - halfW)}px`;
+      pop.style.top = `${box.top - hostBox.top + box.height / 2}px`;
+      pop.classList.add('show');
+      setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    };
+
+    // nodes at their real dates
+    for (const n of nodes) {
+      const c = n.record;
       const causeName = c.resolvedCause ?? 'No confirmed cause';
-
-      const line = svgEl('line', { x1: cx, y1: cy, x2: pos.x, y2: pos.y, class: 'rc-edge' });
-      svg.appendChild(line);
-
+      const text = `${c.idLabel} · ${fmtDay(c.timestamp)} · ${causeName}`;
       const group = svgEl('g', {
-        class: 'rc-nodegroup',
+        class: 'tl-nodegroup',
         tabindex: 0,
         role: 'button',
-        'aria-label': `${c.idLabel}: ${causeName}`,
+        'aria-label': `${c.idLabel}: ${causeName}, ${fmtDay(c.timestamp)}`,
       });
-      const circle = svgEl('circle', { cx: pos.x, cy: pos.y, r: baseR, class: isMatch ? 'rc-node match' : 'rc-node' });
-      group.appendChild(circle);
-      const idLabel = svgEl('text', { x: pos.x, y: pos.y + baseR + 11, class: 'rc-nodelabel', 'text-anchor': 'middle' });
-      idLabel.textContent = c.idLabel;
-      group.appendChild(idLabel);
-
-      const nv: NodeView = {
-        case: c, group, circle, label: idLabel, line,
-        slot: i, baseR, x: pos.x, y: pos.y, r: baseR, raf: null,
-      };
-      nodes.push(nv);
-
-      group.addEventListener('mouseenter', (ev) => showTip(ev, `${c.idLabel} · ${causeName}`));
+      group.appendChild(svgEl('circle', { cx: n.x, cy: n.y, r: 8, class: 'tl-ring' }));
+      group.appendChild(svgEl('circle', { cx: n.x, cy: n.y, r, class: n.match ? 'tl-node match' : 'tl-node' }));
+      const title = document.createElementNS(SVG_NS, 'title');
+      title.textContent = text;
+      group.appendChild(title);
+      group.addEventListener('mouseenter', (ev) => showTip(ev, text));
       group.addEventListener('mouseleave', hideTip);
+      group.addEventListener('click', (ev) => { ev.stopPropagation(); openPop(group, c); });
       group.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openPop(group, c); }
       });
-      // click-to-open is resolved in pointerup (drag vs click); this only keeps
-      // the synthetic click from reaching the outside-click popover dismisser
-      group.addEventListener('click', (ev) => ev.stopPropagation());
-
-      group.addEventListener('pointerdown', (ev) => {
-        if (drag) return;
-        hideTip();
-        if (nv.raf) { cancelAnimationFrame(nv.raf); nv.raf = null; }
-        svg.appendChild(group); // paint order: raise above the other nodes
-        try { group.setPointerCapture(ev.pointerId); } catch { /* ignore */ }
-        drag = { nv, pointerId: ev.pointerId, startX: ev.clientX, startY: ev.clientY, startTime: performance.now() };
-        group.classList.add('dragging');
-        nv.r = nv.baseR + 2; // subtle lift
-        applyNode(nv);
-      });
-      group.addEventListener('pointermove', (ev) => {
-        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
-        const p = toSvg(ev.clientX, ev.clientY);
-        nv.x = p.x;
-        nv.y = p.y;
-        applyNode(nv);
-      });
-      group.addEventListener('pointerup', (ev) => {
-        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
-        finishDrag(group, nv, ev.clientX, ev.clientY, ev.pointerId, true);
-      });
-      group.addEventListener('pointercancel', (ev) => {
-        if (!drag || drag.nv !== nv || ev.pointerId !== drag.pointerId) return;
-        finishDrag(group, nv, ev.clientX, ev.clientY, ev.pointerId, false);
-      });
-
       svg.appendChild(group);
-    });
+    }
+
+    // ---- two-column body: compact chart left, case info right ----
+    const chartCol = el('div', 'tc-chart');
+    chartCol.appendChild(legend);
+    chartCol.appendChild(svg);
+
+    const infoCol = el('div', 'tc-info');
+
+    const stats = el('div', 'tc-stats');
+    const stat = (label: string, value: string) => {
+      const s = el('div', 'tc-stat');
+      s.appendChild(el('div', 'k', label));
+      s.appendChild(el('div', 'v', value));
+      stats.appendChild(s);
+    };
+    stat('Cases', `${total}`);
+    stat('Confirmed', `${confirmed} (${confirmedPct}%)`);
+    stat('Span', `${spanDays} d`);
+    stat('Last 30 d', `${recentCount}`);
+    infoCol.appendChild(stats);
+
+    if (topCauses.length) {
+      const sec = el('div', 'tc-causes');
+      sec.appendChild(el('div', 'tc-title', 'Confirmed causes'));
+      const maxCount = Math.max(1, topCauses[0][1]);
+      for (const [name, count] of topCauses) {
+        const row = el('div', 'tc-cause');
+        const nm = el('span', 'name', name);
+        nm.title = name;
+        row.appendChild(nm);
+        row.appendChild(el('span', 'n', `${count}`));
+        const bar = el('div', 'tc-bar');
+        const fill = el('div', 'tc-bar-fill');
+        fill.style.transform = `scaleX(${(count / maxCount).toFixed(3)})`;
+        bar.appendChild(fill);
+        row.appendChild(bar);
+        sec.appendChild(row);
+      }
+      infoCol.appendChild(sec);
+    }
+
+    if (recentCases.length) {
+      const sec = el('div', 'tc-recent');
+      sec.appendChild(el('div', 'tc-title', 'Recent cases'));
+      const chips = el('div', 'tc-chips');
+      for (const c of recentCases) {
+        const chip = button(`${c.idLabel} · ${fmtDay(c.timestamp)}`, 'tc-chip');
+        chip.title = `${c.idLabel} · ${fmtDay(c.timestamp)} · ${c.resolvedCause ?? 'No confirmed cause'}`;
+        chip.onclick = (ev) => { ev.stopPropagation(); openPop(chip, c); };
+        chips.appendChild(chip);
+      }
+      sec.appendChild(chips);
+      infoCol.appendChild(sec);
+    }
+
+    const wrap = el('div', 'tc-wrap');
+    wrap.appendChild(chartCol);
+    wrap.appendChild(infoCol);
+    host.appendChild(wrap);
   })();
+}
+
+// ---------------------------------------------------------------------------
+// Collapsible diagnosis sections. Expansion state is session-only (module
+// scope) so it survives re-analysis within a session but resets on reload.
+// ---------------------------------------------------------------------------
+
+const diagSectionState = { ranking: false, related: false };
+
+interface CollapsibleSection {
+  root: HTMLElement;
+  /** content goes here (clipped while collapsed) */
+  inner: HTMLElement;
+  setBadge: (text: string) => void;
+  /** always-visible line under the header (only when withSummary) */
+  setSummary: (text: string) => void;
+}
+
+function collapsibleSection(opts: {
+  title: string;
+  badge?: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  withSummary?: boolean;
+}): CollapsibleSection {
+  const root = el('div', 'acc');
+  root.dataset.open = String(opts.open);
+
+  const head = el('button', 'acc-head') as HTMLButtonElement;
+  head.type = 'button';
+  head.setAttribute('aria-expanded', String(opts.open));
+
+  const caret = svgEl('svg', { class: 'acc-caret', viewBox: '0 0 12 12', width: 10, height: 10, 'aria-hidden': 'true' });
+  caret.appendChild(svgEl('path', {
+    d: 'M4 2 L8 6 L4 10', fill: 'none', stroke: 'currentColor',
+    'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  }));
+  head.appendChild(caret);
+  head.appendChild(el('span', 'acc-title', opts.title));
+  const badge = el('span', 'acc-badge', opts.badge ?? '');
+  head.appendChild(badge);
+  root.appendChild(head);
+
+  let summary: HTMLElement | null = null;
+  if (opts.withSummary) {
+    summary = el('div', 'acc-summary', '');
+    summary.hidden = true;
+    root.appendChild(summary);
+  }
+
+  // grid-template-rows 0fr -> 1fr gives a smooth height reveal without
+  // animating height/width directly; the inner wrapper clips the content.
+  const bodyEl = el('div', 'acc-body');
+  const clip = el('div', 'acc-inner');
+  const inner = el('div', 'acc-pad');
+  clip.appendChild(inner);
+  bodyEl.appendChild(clip);
+  root.appendChild(bodyEl);
+
+  const apply = (open: boolean): void => {
+    root.dataset.open = String(open);
+    head.setAttribute('aria-expanded', String(open));
+    bodyEl.setAttribute('aria-hidden', String(!open));
+    bodyEl.toggleAttribute('inert', !open);
+    if (open) {
+      // release the clip after the reveal so nested popovers are not cut off
+      window.setTimeout(() => {
+        if (root.dataset.open === 'true') clip.classList.add('uncut');
+      }, 240);
+    } else {
+      clip.classList.remove('uncut');
+    }
+  };
+  apply(opts.open);
+
+  head.onclick = () => {
+    const open = root.dataset.open !== 'true';
+    apply(open);
+    opts.onToggle(open);
+  };
+
+  return {
+    root,
+    inner,
+    setBadge: (text: string) => { badge.textContent = text; },
+    setSummary: (text: string) => {
+      if (!summary) return;
+      summary.textContent = text;
+      summary.hidden = !text;
+    },
+  };
 }
 
 export function renderTroubleshoot(host: HTMLElement): void {
   clear(host);
   resetState();
-  const layout = el('div', 'layout workspace');
+  resetReportForm(); // a new session starts with a fresh report form
+  assistantOpen = false;
+  assistantUnread = false;
+  const layout = el('div', 'layout workbench');
   host.appendChild(layout);
 
-  // ---- Main column: inspection + diagnosis ----
+  // ---- Main column: inspection + diagnosis (full width, no sidebar) ----
   const mainCol = el('div', 'main-col');
   layout.appendChild(mainCol);
 
@@ -395,10 +479,28 @@ export function renderTroubleshoot(host: HTMLElement): void {
   });
   mainCol.insertBefore(vision.panel, diagPanel);
 
-  // ---- Sidebar: assistant chat ----
+  // ---- Assistant: overlay drawer (does not occupy layout space) ----
+  // The backdrop lives in syncAssistant(): it is only in the DOM while open.
+  document.getElementById('chat-drawer')?.remove();
+  document.getElementById('chat-backdrop')?.remove();
+
+  const chatDrawer = el('aside', 'chat-drawer');
+  chatDrawer.id = 'chat-drawer';
+  chatDrawer.setAttribute('aria-label', 'Assistant');
+  chatDrawer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(chatDrawer);
+
   const chatPanel = panel('Assistant');
-  chatPanel.classList.add('chat-sticky');
   const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
+  chatDrawer.appendChild(chatPanel);
+
+  if (!assistantEscBound) {
+    assistantEscBound = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && assistantOpen) closeAssistant();
+    });
+  }
+  syncAssistant();
 
   const evidenceStrip = el('div', 'evidence-strip');
   chatBody.appendChild(evidenceStrip);
@@ -424,7 +526,6 @@ export function renderTroubleshoot(host: HTMLElement): void {
   inputRow.appendChild(sendBtn);
   chatBody.appendChild(chatLog);
   chatBody.appendChild(inputRow);
-  layout.appendChild(chatPanel);
 
   // ---- Conversation state (Gemini-backed discovery) ----
   let conversationHistory: ChatMessage[] = [];
@@ -443,6 +544,11 @@ export function renderTroubleshoot(host: HTMLElement): void {
     m.appendChild(b);
     chatLog.appendChild(m);
     chatLog.scrollTop = chatLog.scrollHeight;
+    // new assistant content while the drawer is closed -> unread indicator
+    if (!assistantOpen) {
+      assistantUnread = true;
+      syncAssistant();
+    }
   };
   const userSay = (text: string) => {
     const m = el('div', 'msg user');
@@ -492,7 +598,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     renderDiagnosis(diagBody, report, actions);
     diagnosed = true;
     updateEvidence();
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
+    renderReportTab(document.getElementById('workbench-report') as HTMLElement);
   };
 
   // ---- Demo: jump straight to a completed diagnosis (dev/test aid) ----
@@ -545,17 +651,20 @@ export function renderTroubleshoot(host: HTMLElement): void {
     say('user', 'Mostly along one edge of the board.');
     say('model', 'Understood. The diagnosis is ready on the left - review the ranked causes and the action plan.');
 
-    // 5. reveal results and focus the workbench
+    // 5. reveal results and open the assistant so the transcript is visible
     renderDiagnosisFor(report, actions);
     updateEvidence();
     switchTab('troubleshoot');
-    chatPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openAssistant();
   };
   const demoBtn = button('Load demo', 'btn sm ghost');
   demoBtn.style.marginLeft = 'auto';
   demoBtn.title = 'Skip setup: analyze the first board and load a completed diagnosis';
   demoBtn.onclick = () => { void loadDemoSession(); };
   chatPanel.querySelector('.panel-head')!.appendChild(demoBtn);
+  const drawerClose = button('×', 'drawer-close', () => closeAssistant());
+  drawerClose.setAttribute('aria-label', 'Close assistant');
+  chatPanel.querySelector('.panel-head')!.appendChild(drawerClose);
 
   // ---- One Gemini chat turn (template fallback when the server is down) ----
   const sendTurn = async (message: string, fallback: string, pushUser: boolean) => {
@@ -710,9 +819,6 @@ export function renderTroubleshoot(host: HTMLElement): void {
     }
 
     userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
-    // bring the diagnosis conversation into view automatically
-    switchTab('troubleshoot');
-    chatPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     // kick off the Gemini consultation (not counted as an engineer turn)
     await sendTurn(
       'The vision system just analyzed a board and the result is in your context. Begin the consultation and ask your first question.',
@@ -734,9 +840,7 @@ export function renderDiagnosis(
 ): void {
   clear(body);
   if (!report || !actions) {
-    body.appendChild(el('div', 'empty-state', ''));
-    const e = body.lastChild as HTMLElement;
-    e.innerHTML = '<div class="big">◆-◆</div><div>Select a board to begin inspection</div>';
+    body.appendChild(el('div', 'empty-state', 'Select a board to begin inspection'));
     return;
   }
 
@@ -763,14 +867,14 @@ export function renderDiagnosis(
       ? Math.round((ds.Good / total) * 100)
       : appState.lastImage?.quality?.overall ?? 0;
 
-    const strip = el('div', 'vision-strip');
+    const isPass = analysis.board_verdict === 'PASS';
+    const strip = el('div', isPass ? 'vision-strip strip-pass' : 'vision-strip strip-fail');
     const item = (label: string, value: string, valueCls = '') => {
       const cell = el('div', 'stat-item');
       cell.appendChild(el('div', 'stat-label', label));
       cell.appendChild(el('div', valueCls ? `stat-value ${valueCls}` : 'stat-value', value));
       strip.appendChild(cell);
     };
-    const isPass = analysis.board_verdict === 'PASS';
     item('Board verdict', analysis.board_verdict, isPass ? 'verdict-pass' : 'verdict-fail');
     item('Less paste', `${ds['Less Paste']} legs`);
     item('Bridging', `${ds.Bridging} legs`);
@@ -789,15 +893,19 @@ export function renderDiagnosis(
   hero.appendChild(conf);
   body.appendChild(hero);
 
-  const reason = el('div', 'reasoning diag-section');
-  reason.appendChild(el('div', 'rlabel', 'Why this ranking'));
-  reason.appendChild(el('p', '', d.reasoning));
-  body.appendChild(reason);
+  // ---- Ranking details (why + ranked causes), collapsed by default ----
+  const causeRows = d.causes.slice(0, 5);
+  const ranking = collapsibleSection({
+    title: 'Ranking details',
+    badge: `${causeRows.length} causes ranked`,
+    open: diagSectionState.ranking,
+    onToggle: (open) => { diagSectionState.ranking = open; },
+  });
+  ranking.inner.appendChild(el('p', 'acc-reasoning', d.reasoning));
 
-  // ---- Ranked causes ----
-  const causesSection = el('div', 'diag-section');
+  const causesSection = el('div', 'causes-block');
   causesSection.appendChild(el('div', 'question-label', 'Possible causes'));
-  for (const c of d.causes.slice(0, 5)) {
+  for (const c of causeRows) {
     const row = el('div', 'bar-row');
     const nameCell = el('div', 'name');
     nameCell.appendChild(el('b', '', c.name));
@@ -813,9 +921,10 @@ export function renderDiagnosis(
     row.appendChild(el('div', 'pct', `${(c.score * 100).toFixed(0)}%`));
     causesSection.appendChild(row);
   }
-  body.appendChild(causesSection);
+  ranking.inner.appendChild(causesSection);
+  body.appendChild(ranking.root);
 
-  // ---- Similar historical cases (async, non-blocking) ----
+  // defect type used to fetch related historical cases
   const defectType = analysis
     ? analysis.defect_summary['Less Paste'] > 0
       ? 'Less Paste'
@@ -824,15 +933,17 @@ export function renderDiagnosis(
         : null
     : null;
 
-  let scBlock: HTMLElement | null = null;
-  let scDivider: HTMLElement | null = null;
+  // ---- Related historical cases (collapsible; summary stays visible) ----
   if (defectType) {
-    scDivider = el('div', 'section-divider');
-    body.appendChild(scDivider);
-    scBlock = el('div', 'similar-cases');
-    body.appendChild(scBlock);
+    const related = collapsibleSection({
+      title: 'Related cases',
+      open: diagSectionState.related,
+      onToggle: (open) => { diagSectionState.related = open; },
+      withSummary: true,
+    });
+    body.appendChild(related.root);
 
-    // insert placeholder already done; fetch in the background with a 1s cap
+    // fetch in the background with a 1s cap
     Promise.race([
       getSimilarCases(defectType),
       new Promise<never>((_, reject) =>
@@ -847,21 +958,19 @@ export function renderDiagnosis(
           message: sc.message,
           defect_type: sc.defect_type,
         };
-        if (!scBlock || !scBlock.isConnected) return;
+        if (!related.root.isConnected) return;
         if (!sc.total_cases) {
-          scBlock.remove();
-          scDivider?.remove();
+          related.root.remove();
           return;
         }
-        scBlock.appendChild(el('div', 'sc-label', 'Historical cases'));
-        scBlock.appendChild(el('div', 'sc-text', sc.message));
-        const graph = el('div', 'rc-graph');
-        scBlock.appendChild(graph);
-        renderHistoricalGraph(graph, defectType, d.causes[0]?.name ?? null, sc.total_cases);
+        // short summary stays visible even while the section is collapsed
+        related.setSummary(sc.message);
+        const chart = el('div', 'trend');
+        related.inner.appendChild(chart);
+        renderCaseTimeline(chart, defectType, d.causes[0]?.name ?? null);
       })
       .catch(() => {
-        scBlock?.remove();
-        scDivider?.remove();
+        related.root.remove();
       });
   }
 
@@ -921,19 +1030,21 @@ export function renderDiagnosis(
     if (savedCauseId) {
       status.innerHTML = isDirty()
         ? `Selected: ${name}. <b style="color:var(--warn)">Unsaved change</b> - press Save to Case Log to update.`
-        : `<b style="color:var(--accent)">✓ Case #${appState.caseRecordId ?? ''} saved.</b> Confirmed: ${name}.`;
+        : `<b style="color:var(--status-good)">✓ Case saved to the log.</b> Confirmed: ${name}.`;
     } else {
       status.textContent = `Selected: ${name} - press Save to Case Log to record it.`;
     }
   };
   const syncSaveBtn = (): void => {
     saveBtn.textContent = savedCauseId !== null && !isDirty()
-      ? `Case #${appState.caseRecordId} saved`
+      ? 'Case saved'
       : 'Save to Case Log';
   };
 
   // one upsert path for both the ✓ chips and SAVE CASE -> same case number
   const persistCase = async (): Promise<number> => {
+    // snapshot the current 8D report fields so the case keeps its own copy
+    const reportData = reportDataSnapshot();
     const id = await upsertCase({
       id: appState.caseRecordId,
       timestamp: Date.now(),
@@ -945,6 +1056,7 @@ export function renderDiagnosis(
       rankedCauses: d.causes.map((c) => ({ causeId: c.causeId, score: c.score })),
       actionPlan: actions.map((a) => a.title),
       notes: appState.fixNote,
+      reportData: reportData ?? undefined,
     });
     appState.caseRecordId = id;
 
@@ -969,10 +1081,12 @@ export function renderDiagnosis(
           confirmed_defects: chosenName ? [d.defectId] : [],
           notes: appState.fixNote ?? (chosenName ? 'Confirmed via engineer feedback button' : 'Saved without confirmation'),
         },
+        report_data: reportData ?? undefined,
       }),
     }).catch((err) => console.warn('case sync to server failed', err));
 
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
+    // refresh the report's counts without rebuilding the pane (keeps typed values)
+    refreshReportTab();
     return id;
   };
 
@@ -1022,11 +1136,12 @@ export function renderDiagnosis(
     }
   });
   const reportBtn = button('Open Report', 'btn primary', () => {
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
-    switchTab('report');
+    refreshReportTab();
+    switchTab('troubleshoot');
+    switchWorkbenchView('report');
   });
   const newSessionBtn = button('Start New Session', 'btn ghost', () => {
-    const host = document.getElementById('tab-troubleshoot');
+    const host = document.getElementById('workbench-inspect');
     if (host) renderTroubleshoot(host);
   });
   row.appendChild(saveBtn);
