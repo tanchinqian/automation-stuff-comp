@@ -1,4 +1,4 @@
-# DISPENSE.AI
+# PasteTrace
 
 An on-device troubleshooting console for fluid-dispensing defects (solder paste, adhesives) in electronics manufacturing. Point it at a board image, get an explainable diagnosis, an action plan, and a loggable 8D report.
 

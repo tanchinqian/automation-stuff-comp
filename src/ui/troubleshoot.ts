@@ -537,7 +537,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
 
   const aiSay = (text: string, html = false) => {
     const m = el('div', 'msg ai');
-    m.appendChild(el('div', 'avatar', 'DA'));
+    m.appendChild(el('div', 'avatar', 'PT'));
     const b = el('div', 'bubble');
     if (html) b.innerHTML = text;
     else b.textContent = text;
@@ -681,7 +681,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     }
 
     const thinking = el('div', 'msg ai');
-    thinking.appendChild(el('div', 'avatar', 'DA'));
+    thinking.appendChild(el('div', 'avatar', 'PT'));
     thinking.appendChild(el('div', 'bubble loading', '…'));
     chatLog.appendChild(thinking);
     chatLog.scrollTop = chatLog.scrollHeight;

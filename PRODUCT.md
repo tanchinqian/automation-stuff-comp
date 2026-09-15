@@ -15,7 +15,7 @@ Primary users are dispensing-line operators and process engineers in electronics
 
 ## Product Purpose
 
-DISPENSE.AI (AI Dispensing Defect Detective) helps manufacturers identify and diagnose fluid-dispensing problems faster. The user describes or uploads a dispensing problem, the assistant asks targeted questions, identifies the likely defect, ranks possible causes with confidence and reasoning, recommends a logical troubleshooting sequence, and generates a report. It is a preliminary troubleshooting aid, not a replacement for engineers.
+PasteTrace helps manufacturers identify and diagnose fluid-dispensing problems faster. The user describes or uploads a dispensing problem, the assistant asks targeted questions, identifies the likely defect, ranks possible causes with confidence and reasoning, recommends a logical troubleshooting sequence, and generates a report. It is a preliminary troubleshooting aid, not a replacement for engineers.
 
 Success means an operator reaches a confident, correct first troubleshooting step in less time than an unassisted or experience-dependent workflow.
 
@@ -40,7 +40,7 @@ A combined, transparent engine: a domain-grounded dispensing failure-mode knowle
 
 ## Brand Commitments
 
-- Name: DISPENSE.AI (AI Dispensing Defect Detective).
+- Name: PasteTrace.
 - Voice: instrument-grade, precise, engineering-neutral; concise labels and status text.
 - Visual identity constraint (established): a dark industrial lab-console aesthetic with a single phosphor-green accent, amber/danger reserved for semantic status.
 

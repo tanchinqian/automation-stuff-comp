@@ -16,15 +16,14 @@ const app = document.getElementById('app')!;
 // Visually hidden document-level heading for structure / screen readers
 const h1 = document.createElement('h1');
 h1.style.cssText = 'position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;';
-h1.textContent = 'DISPENSE.AI - AI Dispensing Defect Detective';
+h1.textContent = 'PasteTrace';
 app.appendChild(h1);
 
 // Top bar
 const topbar = el('div', 'topbar');
 const brand = el('div', 'brand');
 brand.appendChild(el('span', 'mark'));
-brand.appendChild(el('span', '', 'DISPENSE.AI'));
-brand.appendChild(el('span', '', '- AI Dispensing Defect Detective'));
+brand.appendChild(el('span', '', 'PasteTrace'));
 topbar.appendChild(brand);
 
 const nav = el('div', 'nav-tabs');
@@ -46,7 +45,7 @@ topbar.appendChild(nav);
 topbar.appendChild(el('div', 'spacer'));
 
 // Light / dark mode toggle (persisted). Applied before the first paint.
-const MODE_KEY = 'dispenseai.mode';
+const MODE_KEY = 'pastetrace.mode';
 const modeBtn = el('button', 'btn sm ghost mode-toggle', '') as HTMLButtonElement;
 modeBtn.type = 'button';
 modeBtn.id = 'mode-toggle';

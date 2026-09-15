@@ -4,7 +4,7 @@ Guidance for AI agents working on this repository. Read this before making any c
 
 ## Project overview
 
-**DISPENSE.AI** (AI Dispensing Defect Detective) is a fully offline, on-device AI troubleshooting console for fluid-dispensing defects in electronics / semiconductor manufacturing.
+**PasteTrace** is a fully offline, on-device AI troubleshooting console for fluid-dispensing defects in electronics / semiconductor manufacturing.
 
 - Stack: **Vite + TypeScript**, vanilla DOM (no framework). The browser app calls a local FastAPI pipeline server (`server/`); no remote backend.
 - Product truth: read `PRODUCT.md`.

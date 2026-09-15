@@ -53,6 +53,8 @@ export interface PriorStats {
   successRate: number;
 }
 
+// Kept for backward compatibility: renaming the database would orphan cases
+// already stored in users' browsers.
 const DB_NAME = 'nsw-dispense-ai';
 const STORE = 'cases';
 

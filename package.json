@@ -1,9 +1,9 @@
 {
-  "name": "nsw-dispense-ai",
+  "name": "pastetrace",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "AI Dispensing Defect Detective - AI Horizon Solution Challenge 2026",
+  "description": "PasteTrace - an offline, on-device troubleshooting console for fluid-dispensing defects.",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

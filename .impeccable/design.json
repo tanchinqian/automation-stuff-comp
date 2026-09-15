@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-08-21T00:00:00Z",
-  "title": "Design System: DISPENSE.AI",
+  "title": "Design System: PasteTrace",
   "extensions": {
     "colorMeta": {
       "phosphor-green": { "role": "primary", "displayName": "Phosphor Green", "canonical": "#2ee6a8" },
@@ -100,7 +100,7 @@
   ],
   "narrative": {
     "northStar": "The Precision Lab Console",
-    "overview": "DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.",
+    "overview": "PasteTrace reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.",
     "keyCharacteristics": [
       "Two modes of one identity: Steel Blue dark (default) and Steel Blue light, toggled once for the whole console.",
       "One accent (steel blue) for brand and interactive controls; amber/red/green reserved for semantic status; a separate data-viz ramp for charts.",

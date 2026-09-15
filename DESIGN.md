@@ -1,6 +1,6 @@
 ---
-name: DISPENSE.AI
-description: AI Dispensing Defect Detective - an offline, on-device troubleshooting console for fluid-dispensing defects.
+name: PasteTrace
+description: An offline, on-device troubleshooting console for fluid-dispensing defects.
 colors:
   # Dark mode (default)
   steel-blue: "#4a7a9e"
@@ -129,13 +129,13 @@ components:
     padding: "9px 13px"
 ---
 
-# Design System: DISPENSE.AI
+# Design System: PasteTrace
 
 ## Overview
 
 **Creative North Star: "The Precision Lab Console"**
 
-DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. Density is deliberately high (a cockpit, not an airy gallery) because the user is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.
+PasteTrace reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. Density is deliberately high (a cockpit, not an airy gallery) because the user is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.
 
 The personality is precise and unassuming. It earns attention through density, alignment, and the confidence of a well-calibrated machine, not through flourish.
 

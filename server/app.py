@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
     print("Server shutting down.")
 
 
-app = FastAPI(title="DISPENSE.AI pipeline server", lifespan=lifespan)
+app = FastAPI(title="PasteTrace pipeline server", lifespan=lifespan)
 
 # allow the Vite dev server to call us from the browser
 app.add_middleware(

@@ -102,7 +102,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     doc.setFont(FONT, 'bold');
     doc.setFontSize(10);
     doc.setTextColor(...C.black);
-    doc.text('DISPENSE.AI', ML, 22);
+    doc.text('PasteTrace', ML, 22);
     doc.setFont(FONT, 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...C.mid);
@@ -121,7 +121,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     doc.setFont(FONT, 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...C.mid);
-    doc.text('DISPENSE.AI  -  AI Horizon Solution Challenge 2026  -  NSW Automation', ML, H - 14);
+    doc.text('PasteTrace  -  AI Horizon Solution Challenge 2026  -  NSW Automation', ML, H - 14);
     doc.text(`Page ${pageNo}`, W - MR, H - 14, { align: 'right' });
   };
 
