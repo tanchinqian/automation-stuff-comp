@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers --external:onnxruntime-web && node .test.mjs",
+    "eval": "esbuild eval/runEval.ts --bundle --platform=node --format=esm --outfile=eval/.eval.mjs --log-level=error --external:@huggingface/transformers --external:onnxruntime-web && node eval/.eval.mjs",
     "boards:placeholder": "node scripts/generate-placeholder-boards.mjs",
     "boards:real": "node scripts/build-boards.mjs",
     "yolo:prep": "python scripts/yolo_prep.py",
