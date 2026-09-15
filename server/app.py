@@ -576,6 +576,8 @@ def build_chat_prompt(req: ChatRequest) -> tuple[str, int]:
     total = a.get("total_legs_detected", less + bridge + good)
     # board quality = share of good legs (matches the UI)
     quality = round((good / total) * 100) if total else 0
+    # an analysis with 0 legs means the image was not a usable board shot
+    no_board = req.analysis_result is not None and int(total or 0) == 0
 
     prompt = f"""You are an expert PCB solder paste inspection assistant embedded in an industrial manufacturing console. You help engineers diagnose dispensing defects detected by the vision system.
 
@@ -616,6 +618,18 @@ VISION SYSTEM DATA (always available):
   Flagged for review: {flagged} legs
   Board quality score: {quality}/100
 """
+    if no_board:
+        prompt += """
+IMPORTANT - NO BOARD DETECTED IN THE SUPPLIED IMAGE:
+  The vision system found 0 legs, so this image is not a recognisable PCB/SPI board (or the shot is
+  unusable). The counts above are NOT a "0 defects / clean board" result - they carry no information.
+  - State plainly that no board was detected in the image.
+  - Do NOT present a defect, defect counts, or ranked causes as if the board had been inspected.
+  - Do NOT describe the board as clean, passing or defect-free.
+  - If a rule engine pre-analysis is present it came from the engineer's description, not from this
+    image: you may still use it, but never attribute defect counts to the image.
+  - Ask the engineer for a clearer, straight-on board photo, or offer to continue from their description alone.
+"""
 
     r = req.rule_engine_result
     if r is not None:
@@ -650,6 +664,7 @@ HISTORICAL CASE DATA:
     prompt += """
 HARD RULES - never break these:
 - Use ONLY facts from the vision data, rule engine, and what the engineer told you. Never invent defect counts, percentages, or causes not in the data.
+- If the vision data above says the image is not a board (0 legs detected), state that plainly; never present a defect diagnosis or a "clean board" conclusion from that image.
 - STRICT RULE - ONE QUESTION PER REPLY, NO EXCEPTIONS:
   * Your reply must contain AT MOST one question mark.
   * If you find yourself wanting to ask two things, pick the more important one and ask only that.

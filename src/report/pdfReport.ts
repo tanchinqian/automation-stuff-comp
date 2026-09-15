@@ -3,6 +3,7 @@ import type { DiagnosticReport } from '../engine/scorer';
 import type { ActionStep } from '../engine/actions';
 import type { QualityBreakdown } from '../vision/qualityScore';
 import { registerPdfFonts, type PdfFontData } from './pdfFonts';
+import { isLowConfidence } from '../ui/confidence';
 
 export interface ReportData {
   diagnosis: DiagnosticReport;
@@ -315,6 +316,15 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   metaKv(1, 'Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
   y += 14;
 
+  // Presentation-only caveat: same rule as the on-screen badge, no math changed
+  if (isLowConfidence(data.diagnosis.defect.defectConfidence, data.diagnosis.activeSymptoms.length)) {
+    doc.setFont(FONT, 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.mid);
+    doc.text('Low confidence - limited symptom evidence: this ranking is based mainly on baseline priors.', ML + 6, y);
+    y += 12;
+  }
+
   rule(0.8, C.black);
   y += 14;
 
@@ -495,7 +505,20 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   }
 
   // Quality score (if available) - plain text
-  if (data.quality) {
+  const noLegsDetected = !!data.visionAnalysis && data.visionAnalysis.total_legs_detected === 0;
+  if (noLegsDetected) {
+    // matches the on-screen "not measured" state - no numbers are meaningful here
+    y += 4;
+    rule(0.3);
+    y += 8;
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.mid);
+    doc.text('QUALITY SCORE:', ML + 4, y);
+    doc.setTextColor(...C.dark);
+    doc.text('not measured - no legs detected', ML + 90, y);
+    y += 14;
+  } else if (data.quality) {
     y += 4;
     rule(0.3);
     y += 8;

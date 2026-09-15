@@ -8,6 +8,7 @@ import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
 import { getAllCases, priorOverrides, upsertCase } from '../db/caseDB';
 import { renderReportTab, refreshReportTab, resetReportForm, reportDataSnapshot } from './report';
 import { switchWorkbenchView } from './nav';
+import { isLowConfidence, LOW_TOP_CAUSE_SCORE } from './confidence';
 import { createInspectionPanel, type VisionResult } from './vision';
 import { boardClassToSymptoms } from '../vision/qualityScore';
 import { template } from './templates';
@@ -818,11 +819,24 @@ export function renderTroubleshoot(host: HTMLElement): void {
       }
     }
 
-    userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
+    // a zero-leg result means the image is not a usable board shot
+    const noBoard = r.analysis
+      ? r.analysis.total_legs_detected === 0
+      : r.board
+        ? r.board.pads.length === 0
+        : false;
+
+    userSay(noBoard
+      ? '[Image] analyzed: no board detected'
+      : `[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
     // kick off the Gemini consultation (not counted as an engineer turn)
     await sendTurn(
-      'The vision system just analyzed a board and the result is in your context. Begin the consultation and ask your first question.',
-      template('image-cross-ref'),
+      noBoard
+        ? 'The vision system found 0 legs in the supplied image, so no board was detected. Tell the engineer plainly that no board was detected in the image, that the defect counts are therefore meaningless (not a clean board), and ask them to supply a clearer board photo or offer to continue from their description alone. Do not invent defect counts.'
+        : 'The vision system just analyzed a board and the result is in your context. Begin the consultation and ask your first question.',
+      noBoard
+        ? 'No board was detected in that image, so no inspection result is available. Please upload a clearer, straight-on board photo - or describe the problem in your own words and I will work from that.'
+        : template('image-cross-ref'),
       false,
     );
   };
@@ -879,7 +893,7 @@ export function renderDiagnosis(
     item('Less paste', `${ds['Less Paste']} legs`);
     item('Bridging', `${ds.Bridging} legs`);
     item('Good', `${ds.Good} legs`);
-    item('Quality score', `${quality} / 100`);
+    item('Quality score', total ? `${quality} / 100` : 'not measured');
     body.appendChild(strip);
   }
 
@@ -890,6 +904,9 @@ export function renderDiagnosis(
   const conf = el('div', 'confidence-row');
   conf.appendChild(el('span', 'confidence-label', 'Defect confidence'));
   conf.appendChild(el('span', 'confidence-value', `${(d.defectConfidence * 100).toFixed(0)}%`));
+  if (isLowConfidence(d.defectConfidence, report.activeSymptoms.length)) {
+    conf.appendChild(el('span', 'low-conf-badge', 'Low confidence - limited evidence'));
+  }
   hero.appendChild(conf);
   body.appendChild(hero);
 
@@ -905,11 +922,15 @@ export function renderDiagnosis(
 
   const causesSection = el('div', 'causes-block');
   causesSection.appendChild(el('div', 'question-label', 'Possible causes'));
-  for (const c of causeRows) {
+  causeRows.forEach((c, i) => {
     const row = el('div', 'bar-row');
     const nameCell = el('div', 'name');
     nameCell.appendChild(el('b', '', c.name));
     nameCell.appendChild(el('div', '', c.category));
+    // additively flag a top cause that is not really evidenced (no ranking change)
+    if (i === 0 && c.score < LOW_TOP_CAUSE_SCORE) {
+      nameCell.appendChild(el('div', 'low-conf-note', 'Weak evidence'));
+    }
     row.appendChild(nameCell);
     const track = el('div', 'bar-track');
     const fill = el('div', 'bar-fill');
@@ -920,7 +941,7 @@ export function renderDiagnosis(
     row.appendChild(track);
     row.appendChild(el('div', 'pct', `${(c.score * 100).toFixed(0)}%`));
     causesSection.appendChild(row);
-  }
+  });
   ranking.inner.appendChild(causesSection);
   body.appendChild(ranking.root);
 

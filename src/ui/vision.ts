@@ -1,6 +1,6 @@
 import { analyzeBoard, analyzeBoardFromDetections, BOARD_CLASS_LABELS, detectionCounts, imageDataFromCanvas, type BoardAnalysis, type BoardDefectClass, type PadResult } from '../vision/analyzeImage';
 import { yoloAvailable, detectBoard } from '../vision/yoloDetector';
-import { boardQualityScore, type QualityBreakdown } from '../vision/qualityScore';
+import { boardQualityScore, isUnscoredBoard, type QualityBreakdown } from '../vision/qualityScore';
 import { createRegistry } from '../data';
 import type { BoardImage, DatasetProvider } from '../data/types';
 import { el, clear, button, stars } from './dom';
@@ -470,10 +470,16 @@ export function createInspectionPanel(opts: {
       gtTag = ` - GT: <b>${gt}</b> <span style="color:var(--${match ? 'accent' : 'warn'})">${match ? '✓' : '✗'}</span>`;
     }
 
+    // No legs at all: there is nothing to measure, so render an explicit
+    // "not measured" state instead of the empty-pad-derived numbers.
+    const unscored = isUnscoredBoard(board);
+
     clear(qualityBox);
-    const qh = el('div', 'q-hero');
-    qh.appendChild(el('div', 'score', `${quality.overall}`));
-    qh.appendChild(el('div', 'score-label', `board quality / 100 - ${dominant}`));
+    const qh = el('div', unscored ? 'q-hero unscored' : 'q-hero');
+    qh.appendChild(el('div', 'score', unscored ? '--' : `${quality.overall}`));
+    qh.appendChild(el('div', 'score-label', unscored
+      ? 'No board detected - 0 legs found'
+      : `board quality / 100 - ${dominant}`));
     qualityBox.appendChild(qh);
 
     // Component scores: the server pipeline derives them from the per-leg
@@ -515,8 +521,14 @@ export function createInspectionPanel(opts: {
     const card = (label: string, val: number) => {
       const c = el('div', 'q-card');
       c.appendChild(el('div', 'qlabel', label));
-      c.appendChild(el('div', 'stars', stars(val)));
-      c.appendChild(el('div', 'qval', `${val} / 5`));
+      if (unscored) {
+        // nothing was detected, so no star count is meaningful here
+        c.appendChild(el('div', 'stars empty', 'N/A'));
+        c.appendChild(el('div', 'qval', 'not measured'));
+      } else {
+        c.appendChild(el('div', 'stars', stars(val)));
+        c.appendChild(el('div', 'qval', `${val} / 5`));
+      }
       grid.appendChild(c);
     };
     card('Shape / fill', qShape);

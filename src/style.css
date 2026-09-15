@@ -2231,3 +2231,32 @@ label,
 .cal-status.warn {
   color: var(--warn);
 }
+
+/* ---------- Low-confidence caveat (presentation only) ---------- */
+.low-conf-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-tint);
+  color: var(--warn);
+}
+.low-conf-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--warn);
+  margin-top: 3px;
+  white-space: normal;
+}
+
+/* No-legs / nothing-measured quality state */
+.q-hero.unscored .score,
+.q-hero.unscored .score-label {
+  color: var(--ink-faint);
+}
+.q-card .stars.empty {
+  color: var(--ink-faint);
+  font-size: 13px;
+  letter-spacing: 0;
+}
