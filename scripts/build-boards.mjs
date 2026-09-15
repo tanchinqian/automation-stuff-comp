@@ -14,7 +14,7 @@
  *
  * Options:
  *   --data <path>        dataset root (scans for JPEGImages/ + Annotations/)
- *   --limit <n>          max boards to bundle (default 15); balanced by class
+ *   --limit <n>          max boards to bundle (default 3); balanced by class
  *   --max-width <px>     downscale width (default 600)
  *   --dataset <id>       dataset id in boards.json (default pcb-aoi)
  *   --no-augmented       skip *_augmentation subfolders (default true)
@@ -26,12 +26,12 @@ const OUT_DIR = 'public/boards';
 const args = process.argv.slice(2);
 const dataDir = args[args.indexOf('--data') + 1];
 const maxWidth = Number(args[args.indexOf('--max-width') + 1] ?? 600);
-const limit = Number(args[args.indexOf('--limit') + 1] ?? 15);
+const limit = Number(args[args.indexOf('--limit') + 1] ?? 3);
 const datasetId = args[args.indexOf('--dataset') + 1] ?? 'pcb-aoi';
 const noAugmented = !(args.includes('--no-augmented') ? false : true);
 
 if (!dataDir) {
-  console.error('Usage: node scripts/build-boards.mjs --data <path> [--limit 15] [--max-width 600] [--dataset pcb-aoi]');
+  console.error('Usage: node scripts/build-boards.mjs --data <path> [--limit 3] [--max-width 600] [--dataset pcb-aoi]');
   process.exit(1);
 }
 

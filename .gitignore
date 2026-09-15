@@ -17,3 +17,32 @@ Thumbs.db
 /runs/
 /weights/
 yolov8s.pt
+
+# Crop-and-classify dataset tooling output (local only)
+/inspect/
+/output/
+
+# Generated leg-detection dataset (rebuilt by scripts/build_leg_detector.py)
+/dataset_leg_detection/
+
+# Generated blob-based leg dataset (rebuilt by generate_leg_labels_blobs.py)
+/dataset_leg_detection_v2/
+
+# Stage 2 classifier artifacts (rebuilt by scripts/train_classifier.py)
+/checkpoints/
+/results/
+/models/leg_classifier.onnx
+/models/leg_classifier_labels.json
+
+# Local pipeline API server runtime data (case log + temp uploads)
+/server/_uploads/
+/cases/
+
+# Local secrets (keep .env.example tracked)
+.env
+
+# Python caches
+__pycache__/
+
+# Local YOLO base weights (training artifact)
+yolov8n.pt

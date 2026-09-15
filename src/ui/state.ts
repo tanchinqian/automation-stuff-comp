@@ -2,6 +2,7 @@ import type { DiagnosticReport } from '../engine/scorer';
 import type { ActionStep } from '../engine/actions';
 import type { BoardAnalysis } from '../vision/analyzeImage';
 import type { QualityBreakdown } from '../vision/qualityScore';
+import type { AnalysisResult } from '../api/pipeline';
 import type { MaterialType, SymptomId } from '../engine/types';
 
 export interface AppState {
@@ -11,7 +12,7 @@ export interface AppState {
   emphasized?: Set<SymptomId>;
   lastDiagnosis?: DiagnosticReport;
   lastActions?: ActionStep[];
-  lastImage?: { label: string; board?: BoardAnalysis; quality?: QualityBreakdown; imageUrl: string };
+  lastImage?: { label: string; board?: BoardAnalysis; quality?: QualityBreakdown; imageUrl: string; analysis?: AnalysisResult };
   lastEngineLabel: string;
   /** true once the user chooses to proceed without an inspection image this session */
   imageSkipped: boolean;
@@ -37,6 +38,23 @@ export interface AppState {
   closedBy?: string;
   /** Sign-off: date string (ISO) set when operator signs off */
   closedDate?: string;
+
+  // ── Report enrichment (populated during a session) ────────────────────────
+  /** similar historical cases fetched for the current diagnosis */
+  lastSimilarCases?: {
+    total: number;
+    most_common_cause: string | null;
+    message: string;
+    defect_type: string;
+  };
+  /** cause the engineer confirmed as the successful fix (✓ button) */
+  lastConfirmedCause?: string;
+  /** optional free-text: what the engineer says actually fixed it */
+  fixNote?: string;
+  /** IndexedDB auto-increment id for this session's case (reused on re-save) */
+  caseRecordId?: number;
+  /** stable id used to upsert the server case-log record for this session */
+  caseId?: string;
 }
 
 function makeReportId(): string {
@@ -79,4 +97,9 @@ export function resetState(): void {
   appState.employeeId = undefined;
   appState.closedBy = undefined;
   appState.closedDate = undefined;
+  appState.lastSimilarCases = undefined;
+  appState.lastConfirmedCause = undefined;
+  appState.fixNote = undefined;
+  appState.caseRecordId = undefined;
+  appState.caseId = undefined;
 }

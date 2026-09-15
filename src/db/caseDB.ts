@@ -9,6 +9,10 @@ export interface CaseRecord {
   topCause: CauseId;
   resolvedCause?: CauseId;
   notes?: string;
+  /** full ranked cause list captured with the case */
+  rankedCauses?: { causeId: CauseId; score: number }[];
+  /** recommended troubleshooting step titles */
+  actionPlan?: string[];
 }
 
 export interface PriorStats {
@@ -23,13 +27,17 @@ const STORE = 'cases';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    // v2: older records used the pre-Fix5 dispensing defectIds; clear them on
+    // upgrade so the case browser shows only current-domain data
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
         store.createIndex('defectId', 'defectId');
         store.createIndex('timestamp', 'timestamp');
+      } else if (req.transaction) {
+        req.transaction.objectStore(STORE).clear();
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -44,6 +52,42 @@ export async function saveCase(record: Omit<CaseRecord, 'id'>): Promise<number> 
     const req = tx.objectStore(STORE).add(record);
     req.onsuccess = () => resolve(req.result as number);
     req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Insert or update a case. When `record.id` is set, the existing record is
+ * updated in place (same case number, original timestamp preserved); otherwise
+ * a new record is added. Returns the id.
+ */
+export async function upsertCase(record: CaseRecord): Promise<number> {
+  const db = await openDB();
+  if (record.id == null) {
+    // a present-but-undefined keyPath value ('id: undefined') makes add() throw
+    // "Data provided to an operation does not meet requirements", so strip it
+    const data: CaseRecord = { ...record };
+    delete data.id;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const req = tx.objectStore(STORE).add(data);
+      req.onsuccess = () => resolve(req.result as number);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  const id = record.id;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const get = store.get(id);
+    get.onsuccess = () => {
+      const existing = get.result as CaseRecord | undefined;
+      // keep the original opened time when updating an existing case
+      const merged: CaseRecord = { ...record, id, timestamp: existing?.timestamp ?? record.timestamp };
+      const put = store.put(merged);
+      put.onsuccess = () => resolve(put.result as number);
+      put.onerror = () => reject(put.error);
+    };
+    get.onerror = () => reject(get.error);
   });
 }
 
@@ -114,52 +158,36 @@ export function seedCases(): Array<Omit<CaseRecord, 'id'>> {
   const seeds: Array<Omit<CaseRecord, 'id'>> = [];
   const now = Date.now();
   const day = 86400000;
-  const mk = (
-    daysAgo: number,
-    material: string,
-    defectId: DefectId,
-    symptoms: SymptomId[],
-    resolvedCause: CauseId,
-  ) => seeds.push({ timestamp: now - daysAgo * day, material, defectId, symptoms, topCause: resolvedCause, resolvedCause });
+  let i = 0;
 
-  // Inconsistent volume -> air bubble (8 cases as in the spec's example)
-  mk(2, 'adhesive', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional', 'material-voids'], 'air-bubble');
-  mk(5, 'adhesive', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional'], 'air-bubble');
-  mk(9, 'adhesive', 'inconsistent-volume', ['inconsistent-size', 'time-based-drift'], 'air-bubble');
-  mk(12, 'solder-paste', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional', 'starts-after-pause'], 'air-bubble');
-  mk(14, 'solder-paste', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional'], 'air-bubble');
-  mk(16, 'epoxy', 'inconsistent-volume', ['inconsistent-size', 'material-voids'], 'air-bubble');
-  mk(19, 'epoxy', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional', 'material-voids'], 'air-bubble');
-  mk(22, 'adhesive', 'inconsistent-volume', ['inconsistent-size', 'occurrence-occasional'], 'air-bubble');
+  // defectId values match what the rule engine actually produces for the two
+  // vision classes: Less Paste symptoms -> 'missing-dot', Bridging -> 'oversized-dot'
+  // (verified against identifyDefect with boardClassToSymptoms inputs).
+  const LP: SymptomId[] = ['amount-too-small', 'inconsistent-size'];
+  const BR: SymptomId[] = ['spread-beyond', 'shape-irregular'];
 
-  // Undersized -> nozzle blockage / viscosity / cure
-  mk(3, 'epoxy', 'undersized-dot', ['amount-too-small', 'occurrence-continuous'], 'nozzle-blockage');
-  mk(8, 'adhesive', 'undersized-dot', ['amount-too-small', 'needle-tip-buildup'], 'material-cure');
-  mk(15, 'thermal-paste', 'undersized-dot', ['amount-too-small', 'volume-decreases-over-time'], 'material-viscosity');
-  mk(21, 'sealant', 'undersized-dot', ['amount-too-small', 'temperature-varied'], 'material-viscosity');
-  mk(28, 'conformal-coating', 'undersized-dot', ['amount-too-small', 'occurrence-continuous'], 'nozzle-blockage');
+  const mk = (defectId: DefectId, symptoms: SymptomId[], cause: CauseId) => {
+    seeds.push({
+      timestamp: now - Math.round((i / 20) * 90) * day,
+      material: 'solder-paste',
+      defectId,
+      symptoms,
+      topCause: cause,
+      resolvedCause: cause,
+    });
+    i += 1;
+  };
 
-  // Oversized -> viscosity / dispense time
-  mk(4, 'adhesive', 'oversized-dot', ['amount-too-large', 'occurrence-continuous'], 'dispense-time');
-  mk(11, 'solder-paste', 'oversized-dot', ['amount-too-large', 'temperature-varied'], 'material-viscosity');
-  mk(18, 'thermal-paste', 'oversized-dot', ['amount-too-large', 'occurrence-continuous'], 'dispense-time');
+  // 12 Less Paste confirmations
+  for (let n = 0; n < 5; n++) mk('missing-dot', LP, 'air-bubble');
+  for (let n = 0; n < 3; n++) mk('missing-dot', LP, 'material-viscosity');
+  for (let n = 0; n < 2; n++) mk('missing-dot', LP, 'nozzle-blockage');
+  for (let n = 0; n < 2; n++) mk('missing-dot', LP, 'pressure-unstable');
 
-  // Missing -> air / blockage / empty
-  mk(6, 'adhesive', 'missing-dot', ['missing-occasionally', 'missing-location', 'occurrence-occasional'], 'air-bubble');
-  mk(13, 'solder-paste', 'missing-dot', ['missing-occasionally', 'occurrence-occasional'], 'contamination-particle');
-  mk(20, 'epoxy', 'missing-dot', ['missing-occasionally', 'missing-location'], 'nozzle-blockage');
-  mk(25, 'sealant', 'missing-dot', ['missing-occasionally', 'volume-decreases-over-time'], 'syringe-empty');
-
-  // Excessive spread -> viscosity / height
-  mk(7, 'adhesive', 'excessive-spread', ['spread-beyond', 'surface-wetting', 'occurrence-continuous'], 'material-viscosity');
-  mk(17, 'conformal-coating', 'excessive-spread', ['spread-beyond', 'surface-wetting'], 'needle-height');
-  mk(26, 'thermal-paste', 'excessive-spread', ['spread-beyond', 'temperature-varied'], 'material-viscosity');
-
-  // Irregular shape -> air / height / speed
-  mk(10, 'solder-paste', 'irregular-shape', ['shape-irregular', 'dot-elongated'], 'needle-height');
-  mk(23, 'adhesive', 'irregular-shape', ['shape-irregular', 'material-voids', 'occurrence-occasional'], 'air-bubble');
-  mk(27, 'epoxy', 'irregular-shape', ['shape-irregular', 'dot-elongated', 'speed-slow-fast'], 'speed-motion');
-  mk(29, 'sealant', 'irregular-shape', ['shape-irregular', 'occurrence-occasional', 'material-voids'], 'air-bubble');
+  // 8 Bridging confirmations
+  for (let n = 0; n < 3; n++) mk('oversized-dot', BR, 'pressure-unstable');
+  for (let n = 0; n < 3; n++) mk('oversized-dot', BR, 'material-viscosity');
+  for (let n = 0; n < 2; n++) mk('oversized-dot', BR, 'valve-wear');
 
   return seeds;
 }

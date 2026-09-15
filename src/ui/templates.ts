@@ -8,7 +8,7 @@ import type { ChatContext } from '../nlu/llmRouter';
 
 const POOLS: Record<ChatContext['intent'], string[]> = {
   welcome: [
-    'Welcome to DISPENSE.AI - the AI Dispensing Defect Detective. I will ask a few smart questions to pinpoint the problem, and an inspection image on the left sharpens the diagnosis.',
+    'Welcome to DISPENSE.AI. I will ask a few questions to pinpoint the problem, and an inspection image on the left sharpens the diagnosis.',
     'Welcome to DISPENSE.AI. Describe the dispensing problem and I will guide the troubleshooting. An image from the left panel adds strong evidence.',
   ],
   acknowledge: [
