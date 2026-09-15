@@ -1,9 +1,9 @@
 # 10-Minute Master Presentation Script: PasteTrace
 **Competition:** NSW Automation — AI Horizon Solution Challenge 2026  
 **Team:** Team Amaterasu  
-**Project:** PasteTrace / PasteTrace — The AI Dispensing Defect Detective  
+**Project:** PasteTrace — The AI Dispensing Defect Detective  
 **Tagline:** *Helping Manufacturers Identify Dispensing Problems Faster with AI*  
-**Total Target Video Duration:** Under 10:00 (Structured for ~9:40)
+**Total Target Video Duration:** Under 10:00 (Calibrated for ~9:45)
 
 ---
 
@@ -13,13 +13,13 @@
 | :--- | :--- | :--- | :--- |
 | **Preamble & Hook** | Slide 1: Introduction & Vision | 25s | `0:00 – 0:25` |
 | **Problem Context** | Slide 2: The Micro-Dispensing Bottleneck | 55s | `0:25 – 1:20` |
-| **The Paradigm Shift** | Slide 3: Trial & Error vs. Evidence-Guided AI | 55s | `1:20 – 2:15` |
+| **The Paradigm Shift** | Slide 3: Trial & Error vs. PasteTrace | 55s | `1:20 – 2:15` |
 | **Solution Overview** | Slide 4: See. Ask. Reason. Act. | 60s | `2:15 – 3:15` |
 | **System Architecture** | Slide 5: The 4-Step Edge Pipeline | 75s | `3:15 – 4:30` |
 | **Design Rationale** | Slide 6: Why This Approach? (Explainability, Edge, Memory) | 65s | `4:30 – 5:35` |
 | **Technical Validation**| Slide 7: Validation, Accuracy & Benchmarking | 60s | `5:35 – 6:35` |
 | **Enterprise Impact** | Slide 8: Shop-Floor ROI & Implementation | 50s | `6:35 – 7:25` |
-| **Live Demonstration** | Slide 9: LIVE SYSTEM DEMO (Modular Hand-off) | 2m 10s | `7:25 – 9:35` |
+| **Live Demonstration** | Slide 9: LIVE SYSTEM DEMO (Full 5-Act Walkthrough) | 2m 10s | `7:25 – 9:35` |
 | **Final Wrap-Up** | Slide 10: Summary & Closing Remarks | 25s | `9:35 – 10:00` |
 
 ---
@@ -170,39 +170,109 @@ What does PasteTrace deliver to a manufacturing enterprise?
 3. **Accelerated Technician Onboarding:** Enables junior technicians on the graveyard shift to troubleshoot with the diagnostic confidence of a 10-year veteran.
 4. **Frictionless Compliance:** Automatically generates audit-ready 8D documentation with embedded visual proof, eliminating manual administrative overhead.
 
-Now, let us move from theory to reality. We invite you to see PasteTrace in action.
+Now, let us move from theory to reality. We invite you to see PasteTrace in action on a real dispensing failure.
 
 ---
 
 ### SLIDE 9 — LIVE SYSTEM DEMO
 **Timestamp:** `[7:25 – 9:35]` (2 minutes 10 seconds)
 
-> *(Presenter transition cue: Switch screen to the live PasteTrace / PasteTrace Console interface at `http://localhost:5173`.)*
+*(Presenter cuts smoothly from presentation slides to the live dark-mode PasteTrace Console running at `http://localhost:5173`.)*
 
-**Demonstration Narration Flow (Modular 5-Act Walkthrough):**
-- **Act 1 — Vision Inspection & Quality Score:**  
-  Select a defective board from the gallery. Watch the dual-stage YOLOv8s and MobileNetV2 vision pipeline detect each solder leg, identify insufficient paste pads with red bounding boxes, and assign an overall /100 Dispensing Quality Score with a clear FAIL verdict.
-- **Act 2 — Guided Discovery & Explainable Diagnosis:**  
-  Open the Assistant drawer. Show how natural language input or dynamic questions extract symptom evidence chips. Demonstrate the ranked root causes (e.g., Air Trapped in Syringe at 85%), highlighting the explicit **"WHY"** reasoning block and the step-by-step action plan.
-- **Act 3 — Closed-Loop Learning Database:**  
-  Under *"What actually fixed it?"*, select the confirmed root cause, enter a brief technician note, and click **Save to Case Log**. Show the timeline of matching historical cases updating its prior statistics in real time.
-- **Act 4 — 8D Report & Audit-Ready PDF:**  
-  Switch to the Report sub-tab. Showcase the pre-filled 8D NCR sections with the embedded board photo, and export the official PDF report with one click.
-- **Act 5 — Calibration & Precision Lab Console:**  
-  Briefly showcase the Calibration tab for custom manufacturing tolerances and the zero-cloud offline capability.
+```
+================================================================================
+ACT 1: COMPUTER VISION & QUALITY SCORING [7:25 – 7:55] (30s)
+================================================================================
+```
+- **Visual Action:**
+  - On the **Workbench > Inspect & Diagnose** tab, click on the **Board Gallery**.
+  - Select the `Less Paste` board sample (or upload a board photo).
+  - Click **Analyze Board** (or let the local pipeline process it).
+  - Zoom in slightly on the canvas overlay: highlight the green bounding boxes on Good leads and red bounding boxes on starved leads.
+  - Point the cursor to the **Inspection Summary** and **Quality Score card**.
 
-*(Note: For the detailed screen click-through, actions, and verbatim narrator lines for this live demo slot, refer directly to Section 3 of [DEMO_PRESENTATION_SCRIPT.md](file:///Users/elson/AI-Horizon-2026/automation-stuff-comp/DEMO_PRESENTATION_SCRIPT.md).)*
+- **Spoken Voiceover:**
+  > *"Here is the live PasteTrace console. We start at the optical inspection station. When an operator spots a potential defect, they load or capture an image of the dispensed board.
+  >
+  > Immediately, our two-stage vision pipeline engages: a trained YOLOv8s detector localizes every lead, and a MobileNetV2 classifier evaluates paste coverage.
+  >
+  > Notice the canvas: it precisely flags four leads with insufficient solder paste in red. Instantly, PasteTrace issues a FAIL verdict and generates an objective Dispensing Quality Score of 68 out of 100, breaking down shape, volume, and positioning consistency."*
+
+```
+================================================================================
+ACT 2: GUIDED DISCOVERY & EXPLAINABLE DIAGNOSIS [7:55 – 8:30] (35s)
+================================================================================
+```
+- **Visual Action:**
+  - Click the **Assistant** toggle in the top bar to open the side drawer.
+  - Type or click into the prompt: *"The defect is intermittent and started right after we installed a new solder paste syringe."* Click **ANALYZE**.
+  *(Pro-tip: You can also click the built-in 'Load demo' button in the drawer header to instantly load this complete session!)*
+  - Watch the evidence chips light up: `Material: Solder Paste`, `Intermittent`, `Recent Batch Change`.
+  - On the main panel, highlight the **Identified Dispensing Defect** banner (`Insufficient Dispensing Volume — 90% Confidence`).
+  - Expand **Ranking details** to show the horizontal likelihood bars, hover over the **Reasoning** block, and scroll down to the **Action Plan**.
+
+- **Spoken Voiceover:**
+  > *"The visual evidence feeds straight into our diagnostic assistant. Through dynamic intake questions, the operator describes the operating context. Layered on-device NLU parses this input without touching an external cloud.
+  >
+  > PasteTrace identifies the defect as 'Insufficient Dispensing Volume' with 90% confidence. But look at the cause ranking: 'Air trapped in syringe' is ranked at 85%, followed by nozzle clogging at 70%.
+  >
+  > Crucially, PasteTrace is not a black box—it explains WHY. It states explicitly: 'Air bubbles are ranked highest because volume varies intermittently rather than continuously, and followed a syringe changeover.' Below, it gives the operator a prioritized, step-by-step checklist of what to inspect first."*
+
+```
+================================================================================
+ACT 3: CLOSED-LOOP AI LEARNING DATABASE [8:30 – 8:55] (25s)
+================================================================================
+```
+- **Visual Action:**
+  - Under **"What actually fixed it?"**, click the button chip: `Air trapped in syringe / supply`.
+  - Type in the note: *"Purged syringe barrel. Defect cleared."* Click **Save to Case Log**.
+  - Expand **Related cases** to show the interactive timeline and historical summary text.
+  - Click the top navigation tab **02 LEARNING DB** to reveal the searchable case log.
+
+- **Spoken Voiceover:**
+  > *"Once the technician purges the syringe barrel and resolves the issue, they record what actually fixed it.
+  >
+  > Saving to the Case Log updates our local Bayesian priors in IndexedDB. Looking at the related cases timeline, out of 12 similar historical incidents, 8 were traced to air in the syringe. PasteTrace captures shop-floor tribal knowledge so every confirmed fix makes future diagnoses faster and smarter."*
+
+```
+================================================================================
+ACT 4: 8D REPORT GENERATION & EXPORT [8:55 – 9:20] (25s)
+================================================================================
+```
+- **Visual Action:**
+  - Switch back to **01 WORKBENCH** and click the **Report** sub-tab.
+  - Scroll through the pre-populated **8D Quality Report** (Machine ID, D1–D5 containment and root-cause data, and the embedded board photo with defect bounding boxes).
+  - Click **Download PDF** (or **Generate PDF**) and display the exported PDF document on screen.
+
+- **Spoken Voiceover:**
+  > *"When defect containment requires formal quality sign-off, the operator simply clicks the Report tab.
+  >
+  > PasteTrace automatically compiles the entire investigation into an industry-standard 8D Non-Conformance Report. It embeds the board image with bounding-box defect overlays, logs containment actions, and structures verification notes. With one click, it exports an audit-ready PDF ready for quality managers and customer compliance."*
+
+```
+================================================================================
+ACT 5: CALIBRATION & LAB CONSOLE WRAP-UP [9:20 – 9:35] (15s)
+================================================================================
+```
+- **Visual Action:**
+  - Click the **Calibration** sub-tab to display the adjustable star-rating and defect tolerance sliders.
+  - Briefly toggle the dark/light mode button in the top bar to show UI flexibility, then return to the sleek dark instrument console.
+
+- **Spoken Voiceover:**
+  > *"With adjustable calibration thresholds for custom line tolerances and 100% on-device offline resilience, PasteTrace provides an industrial-grade instrument built specifically for high-reliability manufacturing."*
 
 ---
 
 ### SLIDE 10 — SUMMARY & CLOSING
 **Timestamp:** `[9:35 – 10:00]` (25 seconds)
 
+*(Presenter transitions back to the final slide.)*
+
 To conclude:
 
 PasteTrace transforms fluid dispensing maintenance from **guess, replace, and retry** into **see, ask, reason, and act.**
 
-By uniting edge computer vision, explainable physics-grounded reasoning, closed-loop machine learning, and automated 8D reporting, we provide manufacturing lines with the speed, consistency, and intelligence they need.
+By uniting edge computer vision, explainable physics-grounded reasoning, closed-loop machine learning, and automated 8D reporting, we provide manufacturing lines with the speed, consistency, and intelligence they need to thrive.
 
 We are **Team Amaterasu**, and this is **PasteTrace — The Defect Detective**.
 
