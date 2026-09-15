@@ -95,6 +95,15 @@ export function boardClassToSymptoms(cls: BoardAnalysis['dominantDefect']): stri
 }
 
 /**
+ * True when the analysis found no legs at all, so there is nothing real to
+ * score. The caller should render an explicit "not measured" state instead of
+ * the numbers boardQualityScore() derives from an empty pad list.
+ */
+export function isUnscoredBoard(b: BoardAnalysis): boolean {
+  return b.pads.length === 0;
+}
+
+/**
  * Board quality score (Bonus Challenge 2, board variant). Derives the same
  * /100 + star model from per-pad metrics instead of dot metrics.
  */

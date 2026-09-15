@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .test.mjs
+eval/.eval.mjs
 *.log
 .DS_Store
 Thumbs.db

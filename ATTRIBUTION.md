@@ -39,3 +39,13 @@ node scripts/build-boards.mjs --data <path-to-pcb-aoi>
 This overwrites `public/boards/boards.json` + images with the real boards and
 their parsed VOC pad annotations (no XML parsing at runtime). Update the
 `attribution` field in the generated JSON to reflect the authors above.
+
+## Bundled fonts
+
+- **Inter** (`public/fonts/Inter-Regular.ttf`, `Inter-Bold.ttf`) - SIL Open Font
+  License 1.1. https://github.com/rsms/inter
+- **JetBrains Mono** - loaded from Google Fonts in `index.html` - SIL Open Font
+  License 1.1. https://github.com/JetBrains/JetBrainsMono
+
+The PDF report embeds Inter at generation time; the on-screen fonts are loaded
+from the Google Fonts CDN and fall back to the system stacks when offline.

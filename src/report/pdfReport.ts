@@ -2,6 +2,8 @@ import { jsPDF } from 'jspdf';
 import type { DiagnosticReport } from '../engine/scorer';
 import type { ActionStep } from '../engine/actions';
 import type { QualityBreakdown } from '../vision/qualityScore';
+import { registerPdfFonts, type PdfFontData } from './pdfFonts';
+import { isLowConfidence } from '../ui/confidence';
 
 export interface ReportData {
   diagnosis: DiagnosticReport;
@@ -9,6 +11,8 @@ export interface ReportData {
   quality?: QualityBreakdown;
   imageLabel?: string;
   imageUrl?: string;
+  /** image encoding for addImage: canvas captures are PNG, case thumbnails JPEG */
+  imageFormat?: 'PNG' | 'JPEG';
   engineLabel: string;
 
   // ── 8D-Lite fields ────────────────────────────────────────────────────────
@@ -81,8 +85,10 @@ const C = {
   white:     [255, 255, 255] as [number, number, number],
 };
 
-export function buildReportPdf(data: ReportData): jsPDF {
+export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = null): jsPDF {
   const doc  = new jsPDF({ unit: 'pt', format: 'a4' });
+  // embedded Inter when available, otherwise jsPDF's built-in Helvetica
+  const FONT = registerPdfFonts(doc, fonts);
   const W    = doc.internal.pageSize.getWidth();   // 595
   const H    = doc.internal.pageSize.getHeight();  // 842
   const ML   = 40;
@@ -94,11 +100,11 @@ export function buildReportPdf(data: ReportData): jsPDF {
   // ── Page chrome ─────────────────────────────────────────────────────────────
   const drawHeader = () => {
     // No background fill - plain white header with thin bottom rule
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(10);
     doc.setTextColor(...C.black);
-    doc.text('DISPENSE.AI', ML, 22);
-    doc.setFont('helvetica', 'normal');
+    doc.text('PasteTrace', ML, 22);
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...C.mid);
     doc.text('8D Dispensing Defect Report', W - MR, 22, { align: 'right' });
@@ -113,10 +119,10 @@ export function buildReportPdf(data: ReportData): jsPDF {
     doc.setDrawColor(...C.light);
     doc.setLineWidth(0.4);
     doc.line(ML, H - 26, W - MR, H - 26);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...C.mid);
-    doc.text('DISPENSE.AI  -  AI Horizon Solution Challenge 2026  -  NSW Automation', ML, H - 14);
+    doc.text('PasteTrace  -  AI Horizon Solution Challenge 2026  -  NSW Automation', ML, H - 14);
     doc.text(`Page ${pageNo}`, W - MR, H - 14, { align: 'right' });
   };
 
@@ -146,7 +152,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
     opts: { size?: number; color?: [number,number,number]; indent?: number; bold?: boolean; gap?: number } = {},
   ) => {
     const { size = 9, color = C.dark, indent = 0, bold = false, gap = 4 } = opts;
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFont(FONT, bold ? 'bold' : 'normal');
     doc.setFontSize(size);
     doc.setTextColor(...color);
     const lines = doc.splitTextToSize(text, CW - indent - 8);
@@ -164,11 +170,11 @@ export function buildReportPdf(data: ReportData): jsPDF {
     const keyX  = ML + indent + 6;
     const valX  = ML + indent + 110;
     const maxW  = CW - indent - 116; // remaining width to right box edge
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text(key.toUpperCase() + ':', keyX, y);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setTextColor(...C.dark);
     // Split value if it would overflow the box
     const valLines = doc.splitTextToSize(value, maxW);
@@ -191,13 +197,13 @@ export function buildReportPdf(data: ReportData): jsPDF {
     y += 12; // top inner pad
 
     // Tag (e.g. "D1") in mid-grey bold, then title in black bold on same baseline
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(10);
     doc.setTextColor(...C.mid);
     const tagW = doc.getTextWidth(tag);
     doc.text(tag, ML + 6, y);
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...C.black);
     doc.text(label, ML + 6 + tagW + 5, y);
@@ -222,7 +228,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   const verifiedLine = (verified: boolean) => {
     guard(14);
     y += 2;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text('STATUS:', ML + 4, y);
@@ -237,14 +243,14 @@ export function buildReportPdf(data: ReportData): jsPDF {
     const stepH = 14 + detailLines.length * 11 + 4;
     guard(stepH);
     // Step number + title
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...C.dark);
     const titleLines = doc.splitTextToSize(`${a.order}.  ${a.title}`, CW - 16);
     doc.text(titleLines[0], ML + 6, y);
     y += 13;
     // Detail text indented
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     for (const line of detailLines) {
@@ -261,7 +267,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   drawHeader();
 
   // ── Document title ──────────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(20);
   doc.setTextColor(...C.black);
   doc.text('8D report', ML, y);
@@ -285,7 +291,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
     const kx = col === 1 ? col1X : col2X;
     const vx = kx + colValOff;
     const maxW = col === 1 ? col1ValMaxW : col2ValMaxW;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...C.mid);
     doc.text(`${key}:`, kx, y);
@@ -309,6 +315,15 @@ export function buildReportPdf(data: ReportData): jsPDF {
   y += 12;
   metaKv(1, 'Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
   y += 14;
+
+  // Presentation-only caveat: same rule as the on-screen badge, no math changed
+  if (isLowConfidence(data.diagnosis.defect.defectConfidence, data.diagnosis.activeSymptoms.length)) {
+    doc.setFont(FONT, 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.mid);
+    doc.text('Low confidence - limited symptom evidence: this ranking is based mainly on baseline priors.', ML + 6, y);
+    y += 12;
+  }
 
   rule(0.8, C.black);
   y += 14;
@@ -337,7 +352,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   if (data.visionAnalysis) {
     const va = data.visionAnalysis;
     y += 4;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text('Vision system results:', ML + 4, y);
@@ -357,11 +372,11 @@ export function buildReportPdf(data: ReportData): jsPDF {
     for (const [k, v] of vaRows) {
       guard(13);
       const isVerdict = k === 'Board Verdict';
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(FONT, 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(...C.mid);
       doc.text(`${k}:`, vaKeyX, y);
-      doc.setFont('helvetica', isVerdict ? 'bold' : 'normal');
+      doc.setFont(FONT, isVerdict ? 'bold' : 'normal');
       doc.setTextColor(...C.dark);
       doc.text(v, vaValX, y);
       y += 13;
@@ -372,7 +387,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   // Inspection image - placed here in D2 Problem Description
   if (data.imageUrl) {
     y += 4;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text('INSPECTION IMAGE:', ML + 4, y);
@@ -383,10 +398,10 @@ export function buildReportPdf(data: ReportData): jsPDF {
       doc.setDrawColor(...C.light);
       doc.setLineWidth(0.3);
       doc.rect(ML + 4, y, imgW, imgH, 'S');
-      doc.addImage(data.imageUrl, 'PNG', ML + 4, y, imgW, imgH);
+      doc.addImage(data.imageUrl, data.imageFormat ?? 'PNG', ML + 4, y, imgW, imgH);
       y += imgH + 6;
       if (data.imageLabel) {
-        doc.setFont('helvetica', 'normal');
+        doc.setFont(FONT, 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(...C.mid);
         doc.text(data.imageLabel, ML + 4, y);
@@ -430,7 +445,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   const cCatW  = 130;
   const cPctX  = ML + CW - 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...C.mid);
   doc.text('NO.',        ML + 6,  y);
@@ -448,12 +463,12 @@ export function buildReportPdf(data: ReportData): jsPDF {
     const pct = Math.round(c.score * 100);
 
     // Row 1: number + cause name (clipped) + category (clipped) + score
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...C.dark);
     doc.text(`${i + 1}`, ML + 10, y);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     const nameClipped = doc.splitTextToSize(c.name, cCauseW)[0];
     doc.text(nameClipped, ML + 26, y);
 
@@ -461,14 +476,14 @@ export function buildReportPdf(data: ReportData): jsPDF {
     const catClipped = doc.splitTextToSize(c.category, cCatW)[0];
     doc.text(catClipped, cCatX, y);
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setTextColor(...C.dark);
     doc.text(`${pct}%`, cPctX, y, { align: 'right' });
     y += 12;
 
     // Row 2: brief description in grey, indented under cause name
     const descLine = doc.splitTextToSize(c.description, CW - 36)[0];
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...C.mid);
     doc.text(descLine, ML + 26, y);
@@ -476,7 +491,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
 
     // Row 3: WHY reasons (lighter, smaller, italic) - only when present
     if (c.reasons && c.reasons.length > 0) {
-      doc.setFont('helvetica', 'italic');
+      doc.setFont(FONT, 'italic');
       doc.setFontSize(7);
       doc.setTextColor(...C.mid);
       const whyLines = doc.splitTextToSize(`Why: ${c.reasons.join('; ')}`, CW - 36);
@@ -490,17 +505,30 @@ export function buildReportPdf(data: ReportData): jsPDF {
   }
 
   // Quality score (if available) - plain text
-  if (data.quality) {
+  const noLegsDetected = !!data.visionAnalysis && data.visionAnalysis.total_legs_detected === 0;
+  if (noLegsDetected) {
+    // matches the on-screen "not measured" state - no numbers are meaningful here
     y += 4;
     rule(0.3);
     y += 8;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.mid);
+    doc.text('QUALITY SCORE:', ML + 4, y);
+    doc.setTextColor(...C.dark);
+    doc.text('not measured - no legs detected', ML + 90, y);
+    y += 14;
+  } else if (data.quality) {
+    y += 4;
+    rule(0.3);
+    y += 8;
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text('QUALITY SCORE:', ML + 4, y);
     doc.setTextColor(...C.dark);
     doc.text(`${data.quality.overall}/100`, ML + 90, y);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...C.mid);
     doc.text(
@@ -510,7 +538,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
     y += 14;
   } else {
     y += 4;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text(
@@ -567,7 +595,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
 
   // Historical context from the learning database (only when cases exist)
   if (data.similarCases && data.similarCases.total > 0) {
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text('HISTORICAL CASE REFERENCE:', ML + 4, y);
@@ -588,13 +616,13 @@ export function buildReportPdf(data: ReportData): jsPDF {
   const isClosed = !!(data.closedBy && data.closedDate);
   // Closed on / Closed by columns like reference image
   const closeY = y;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.mid);
   doc.text('CLOSED ON', ML + CW - 180, closeY);
   doc.text('CLOSED BY', ML + CW - 80, closeY);
   y += 12;
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(FONT, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...C.dark);
   doc.text(
@@ -605,11 +633,11 @@ export function buildReportPdf(data: ReportData): jsPDF {
   y += 14;
 
   // Confirmed root cause (challenge: successful solution logged)
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.mid);
   doc.text('CONFIRMED ROOT CAUSE:', ML + 4, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(FONT, 'normal');
   doc.setTextColor(...C.dark);
   const confirmedLines = doc.splitTextToSize(
     data.confirmedCause || '(Awaiting engineer confirmation)',
@@ -624,7 +652,7 @@ export function buildReportPdf(data: ReportData): jsPDF {
   y += 2;
 
   // Status line
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.mid);
   doc.text('STATUS:', ML + 4, y);
@@ -640,16 +668,16 @@ export function buildReportPdf(data: ReportData): jsPDF {
 }
 
 /** Build the report and download it directly. */
-export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.pdf'): void {
-  buildReportPdf(data).save(fileName);
+export function generatePdf(data: ReportData, fileName = 'dispensing-8d-report.pdf', fonts: PdfFontData | null = null): void {
+  buildReportPdf(data, fonts).save(fileName);
 }
 
 /**
  * Build the report and return an object URL for in-app preview.
  * Call the returned revoke() when the preview is closed to release memory.
  */
-export function previewPdfUrl(data: ReportData): { url: string; revoke: () => void } {
-  const doc = buildReportPdf(data);
+export function previewPdfUrl(data: ReportData, fonts: PdfFontData | null = null): { url: string; revoke: () => void } {
+  const doc = buildReportPdf(data, fonts);
   const blob = doc.output('blob');
   const url = URL.createObjectURL(blob);
   let revoked = false;

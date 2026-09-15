@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
     print("Server shutting down.")
 
 
-app = FastAPI(title="DISPENSE.AI pipeline server", lifespan=lifespan)
+app = FastAPI(title="PasteTrace pipeline server", lifespan=lifespan)
 
 # allow the Vite dev server to call us from the browser
 app.add_middleware(
@@ -344,6 +344,12 @@ async def analyze(request: Request):
             image_file = resolve_image_path(body["image_path"])
 
         result = analyze_board(str(image_file))
+        # store a portable repo-relative path when the file lives in the repo
+        # (analyze_board echoes the path it was given, which is absolute on Windows)
+        try:
+            result["image_path"] = image_file.resolve().relative_to(ROOT).as_posix()
+        except ValueError:
+            result["image_path"] = str(image_file)
         result["processing_time_ms"] = round(
             (time.perf_counter() - started) * 1000, 2)
         result["model_version"] = MODEL_VERSION
@@ -378,11 +384,17 @@ async def create_case(request: Request):
         "action_plan": body.get("action_plan", []) or [],
         "engineer_feedback": body.get("engineer_feedback", {}) or {},
     }
+    report_data = body.get("report_data")
+    if report_data:
+        record["report_data"] = report_data
 
     for i, existing in enumerate(cases):
         if existing.get("case_id") == case_id:
             # keep the original opened time when updating an existing case
             record["timestamp"] = existing.get("timestamp", record["timestamp"])
+            # a save that carries no report_data must not wipe a stored one
+            if "report_data" not in body and existing.get("report_data"):
+                record["report_data"] = existing["report_data"]
             cases[i] = record
             break
     else:
@@ -397,6 +409,45 @@ def all_cases():
     """Return every stored case record as-is (for the frontend learning loop)."""
     cases = load_cases()
     return {"cases": cases, "total": len(cases)}
+
+
+@app.patch("/cases/{case_id}")
+async def update_case(case_id: str, request: Request):
+    """Merge a partial update into one stored case (learning database CRUD).
+
+    Top-level fields are replaced when present; engineer_feedback is merged so a
+    partial edit (e.g. only the confirmed cause) keeps the rest. The original
+    timestamp is preserved.
+    """
+    body = await request.json()
+    cases = load_cases()
+    for i, existing in enumerate(cases):
+        if existing.get("case_id") != case_id:
+            continue
+        merged = {**existing}
+        for key in ("image_path", "analysis_result", "ranked_causes", "action_plan", "report_data"):
+            if key in body:
+                merged[key] = body[key]
+        if "engineer_feedback" in body:
+            merged["engineer_feedback"] = {
+                **(existing.get("engineer_feedback") or {}),
+                **(body.get("engineer_feedback") or {}),
+            }
+        cases[i] = merged
+        save_cases(cases)
+        return {"case_id": case_id, "updated": True}
+    raise HTTPException(status_code=404, detail="case not found")
+
+
+@app.delete("/cases/{case_id}")
+def delete_case(case_id: str):
+    """Delete exactly one stored case by case_id (learning database CRUD)."""
+    cases = load_cases()
+    remaining = [c for c in cases if c.get("case_id") != case_id]
+    if len(remaining) == len(cases):
+        raise HTTPException(status_code=404, detail="case not found")
+    save_cases(remaining)
+    return {"case_id": case_id, "deleted": True}
 
 
 @app.get("/cases/similar")
@@ -525,6 +576,8 @@ def build_chat_prompt(req: ChatRequest) -> tuple[str, int]:
     total = a.get("total_legs_detected", less + bridge + good)
     # board quality = share of good legs (matches the UI)
     quality = round((good / total) * 100) if total else 0
+    # an analysis with 0 legs means the image was not a usable board shot
+    no_board = req.analysis_result is not None and int(total or 0) == 0
 
     prompt = f"""You are an expert PCB solder paste inspection assistant embedded in an industrial manufacturing console. You help engineers diagnose dispensing defects detected by the vision system.
 
@@ -565,6 +618,18 @@ VISION SYSTEM DATA (always available):
   Flagged for review: {flagged} legs
   Board quality score: {quality}/100
 """
+    if no_board:
+        prompt += """
+IMPORTANT - NO BOARD DETECTED IN THE SUPPLIED IMAGE:
+  The vision system found 0 legs, so this image is not a recognisable PCB/SPI board (or the shot is
+  unusable). The counts above are NOT a "0 defects / clean board" result - they carry no information.
+  - State plainly that no board was detected in the image.
+  - Do NOT present a defect, defect counts, or ranked causes as if the board had been inspected.
+  - Do NOT describe the board as clean, passing or defect-free.
+  - If a rule engine pre-analysis is present it came from the engineer's description, not from this
+    image: you may still use it, but never attribute defect counts to the image.
+  - Ask the engineer for a clearer, straight-on board photo, or offer to continue from their description alone.
+"""
 
     r = req.rule_engine_result
     if r is not None:
@@ -599,6 +664,7 @@ HISTORICAL CASE DATA:
     prompt += """
 HARD RULES - never break these:
 - Use ONLY facts from the vision data, rule engine, and what the engineer told you. Never invent defect counts, percentages, or causes not in the data.
+- If the vision data above says the image is not a board (0 legs detected), state that plainly; never present a defect diagnosis or a "clean board" conclusion from that image.
 - STRICT RULE - ONE QUESTION PER REPLY, NO EXCEPTIONS:
   * Your reply must contain AT MOST one question mark.
   * If you find yourself wanting to ask two things, pick the more important one and ask only that.

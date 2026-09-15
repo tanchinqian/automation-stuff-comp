@@ -1,14 +1,15 @@
 {
-  "name": "nsw-dispense-ai",
+  "name": "pastetrace",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "AI Dispensing Defect Detective - AI Horizon Solution Challenge 2026",
+  "description": "PasteTrace - an offline, on-device troubleshooting console for fluid-dispensing defects.",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "esbuild engine.test.ts --bundle --platform=node --format=esm --outfile=.test.mjs --log-level=error --external:@huggingface/transformers --external:onnxruntime-web && node .test.mjs",
+    "eval": "esbuild eval/runEval.ts --bundle --platform=node --format=esm --outfile=eval/.eval.mjs --log-level=error --external:@huggingface/transformers --external:onnxruntime-web && node eval/.eval.mjs",
     "boards:placeholder": "node scripts/generate-placeholder-boards.mjs",
     "boards:real": "node scripts/build-boards.mjs",
     "yolo:prep": "python scripts/yolo_prep.py",

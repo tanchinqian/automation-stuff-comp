@@ -1,8 +1,9 @@
-import { getAllCases, clearCases, resolveCase, type CaseRecord } from '../db/caseDB';
-import { BASE_URL } from '../api/pipeline';
+import { getAllCases, clearCases, resolveCase, saveCase, deleteCase as deleteLocalCase, patchCase, type CaseRecord, type CaseReportData } from '../db/caseDB';
+import { BASE_URL, updateCase as apiUpdateCase, deleteCase as apiDeleteCase } from '../api/pipeline';
 import { el, clear, panel, button } from './dom';
-import { CAUSES } from '../engine/knowledgeBase';
+import { CAUSES, MATERIALS, SYMPTOMS } from '../engine/knowledgeBase';
 import { openPdfPreview } from '../report/pdfPreview';
+import { fetchCaseImage, legsFromAnalysis } from '../report/caseImage';
 import type { ReportData } from '../report/pdfReport';
 import type { ActionStep } from '../engine/actions';
 import type { CauseId, DefectId, SymptomId } from '../engine/types';
@@ -27,7 +28,10 @@ interface BoardResult {
 export interface UnifiedCase {
   key: string;
   source: 'local' | 'server' | 'both';
+  /** display-only label, e.g. "#001" - assigned by assignDisplayNumbers() */
   idLabel: string;
+  /** display-only chronological ticket number (oldest case = 1) */
+  displayNumber: number;
   timestamp: number; // ms
   defectId: string | null;
   /** vision-domain label: "Less Paste" | "Bridging" | "Good" */
@@ -43,6 +47,8 @@ export interface UnifiedCase {
   serverCaseId?: string;
   imagePath?: string;
   analysisRaw?: unknown;
+  /** 8D report fields saved with this case (from the server record or IndexedDB) */
+  reportData?: CaseReportData;
 }
 
 const PAGE_SIZE = 20;
@@ -71,6 +77,17 @@ const DEFECT_TO_VISION: Record<string, string> = {
   'irregular-shape': 'Bridging',
 };
 const VISION_LABELS = new Set(['Less Paste', 'Bridging', 'Good']);
+
+const CAUSE_ID_BY_NAME: Record<string, CauseId> = Object.fromEntries(
+  Object.entries(CAUSES).map(([id, info]) => [info.name, id as CauseId]),
+);
+
+/** Manual-entry defect choices mapped to engine ids so dedup still matches. */
+const DEFECT_CHOICES: { label: string; defectId: string }[] = [
+  { label: 'Less Paste', defectId: 'missing-dot' },
+  { label: 'Bridging', defectId: 'oversized-dot' },
+  { label: 'Good', defectId: 'Good' },
+];
 
 function visionLabelFromDefectId(defectId?: string | null): string | null {
   if (!defectId) return null;
@@ -109,7 +126,8 @@ function localToUnified(c: CaseRecord): UnifiedCase {
   return {
     key: `local-${c.id ?? c.timestamp}`,
     source: 'local',
-    idLabel: c.id != null ? `#${c.id}` : '#',
+    idLabel: '#',
+    displayNumber: 0,
     timestamp: c.timestamp,
     defectId: c.defectId ?? null,
     defectLabel: visionLabelFromDefectId(c.defectId),
@@ -121,6 +139,7 @@ function localToUnified(c: CaseRecord): UnifiedCase {
     resolvedCause: c.resolvedCause ?? null,
     board: null,
     localId: c.id,
+    reportData: c.reportData,
   };
 }
 
@@ -147,7 +166,8 @@ export function serverToUnified(rec: Record<string, unknown>): UnifiedCase {
   return {
     key: `server-${String(rec.case_id ?? '')}`,
     source: 'server',
-    idLabel: `#${String(rec.case_id ?? '').slice(0, 6)}`,
+    idLabel: '#',
+    displayNumber: 0,
     timestamp: Number(rec.timestamp ?? 0) * 1000,
     defectId,
     defectLabel,
@@ -161,12 +181,28 @@ export function serverToUnified(rec: Record<string, unknown>): UnifiedCase {
     serverCaseId: String(rec.case_id ?? ''),
     imagePath: (rec.image_path as string) ?? undefined,
     analysisRaw: rec.analysis_result,
+    reportData: (rec.report_data as CaseReportData) ?? undefined,
   };
+}
+
+/**
+ * Assign display-only ticket numbers in chronological creation order
+ * (oldest = #001), independent of the list's display order. Recomputed on every
+ * load; the real local id and server case_id are never touched.
+ */
+function assignDisplayNumbers(cases: UnifiedCase[]): UnifiedCase[] {
+  [...cases]
+    .sort((a, b) => a.timestamp - b.timestamp || a.key.localeCompare(b.key))
+    .forEach((c, i) => {
+      c.displayNumber = i + 1;
+      c.idLabel = `#${String(i + 1).padStart(3, '0')}`;
+    });
+  return cases;
 }
 
 /** Map raw server case-log records (e.g. GET /cases/matching) to the unified model. */
 export function unifiedFromServerCases(records: Record<string, unknown>[]): UnifiedCase[] {
-  return records.map(serverToUnified);
+  return assignDisplayNumbers(records.map(serverToUnified));
 }
 
 function mergeBoth(local: UnifiedCase, server: UnifiedCase): UnifiedCase {
@@ -185,6 +221,7 @@ function mergeBoth(local: UnifiedCase, server: UnifiedCase): UnifiedCase {
     symptoms: local.symptoms.length ? local.symptoms : server.symptoms,
     defectId: local.defectId ?? server.defectId,
     defectLabel: local.defectLabel ?? server.defectLabel,
+    reportData: local.reportData ?? server.reportData,
   };
 }
 
@@ -237,6 +274,8 @@ export async function loadAllCases(): Promise<UnifiedCase[]> {
   serverU.forEach((s, i) => { if (!usedServer.has(i)) merged.push(s); });
 
   const sorted = merged.sort((a, b) => b.timestamp - a.timestamp);
+  // display-only ticket numbers, chronological (oldest = #001)
+  assignDisplayNumbers(sorted);
 
   // TEMP DEBUG (Bug 3): show exactly what defect labels are stored per source
   console.log('[case-browser] first 5 raw defect labels:',
@@ -280,6 +319,7 @@ export function caseToReportData(c: UnifiedCase): ReportData {
     detail: '',
   }));
   const resolved = !!c.resolvedCause;
+  const rd = c.reportData;
 
   return {
     diagnosis: {
@@ -305,8 +345,29 @@ export function caseToReportData(c: UnifiedCase): ReportData {
     containmentVerified: resolved,
     rootCauseVerified: resolved,
     correctiveActionVerified: false,
-    engineerNotes: c.notes ?? undefined,
-    confirmedCause: c.resolvedCause ?? undefined,
+    // prefer the report fields saved with the case; fall back to its notes/cause
+    employeeName: rd?.employeeName,
+    employeeId: rd?.employeeId,
+    machineId: rd?.machineId,
+    affectedCount: rd?.affectedCount,
+    d3Status: rd?.d3Status,
+    d3Action: rd?.d3Action,
+    d3CompletedBy: rd?.d3CompletedBy,
+    d3CompletedAt: rd?.d3CompletedAt,
+    d4Status: rd?.d4Status,
+    d4Method: rd?.d4Method,
+    d5Status: rd?.d5Status,
+    d5TargetDate: rd?.d5TargetDate,
+    d5Responsible: rd?.d5Responsible,
+    d6Status: rd?.d6Status,
+    d6Action: rd?.d6Action,
+    d6Verified: rd?.d6VerifiedEffective,
+    engineerNotes: rd?.notes ?? c.notes ?? undefined,
+    confirmedCause: rd?.confirmedCause ?? c.resolvedCause ?? undefined,
+    closedBy: rd?.closedBy,
+    closedDate: rd?.closedDate,
+    // image bytes are attached asynchronously by the caller (case thumbnail)
+    imageLabel: c.imagePath ? (c.imagePath.split('/').pop() ?? undefined) : undefined,
     visionAnalysis: c.board ? {
       board_verdict: c.board.verdict,
       defect_summary: { 'Less Paste': c.board.lessPaste, Bridging: c.board.bridging, Good: c.board.good },
@@ -318,10 +379,14 @@ export function caseToReportData(c: UnifiedCase): ReportData {
 }
 
 export interface CaseDetailOptions {
-  /** Honest one-line reason this case is shown (used by the case graph). */
+  /** Honest one-line reason this case is shown (Related-cases timeline popover). */
   matchedBecause?: string;
   /** When provided, renders the inline resolve control (Learning DB tab only). */
   onConfirm?: (causeId: string) => void;
+  /** Learning DB tab only: open the edit form for this case. */
+  onEdit?: () => void;
+  /** Learning DB tab only: delete this case. */
+  onDelete?: () => void;
 }
 
 /** Shared expanded-case detail markup (Learning DB tab + case graph popover). */
@@ -388,11 +453,23 @@ export function renderCaseCardDetail(c: UnifiedCase, opts: CaseDetailOptions = {
     detail.appendChild(resolveRow);
   }
 
-  // Per-case report preview
+  // Per-case actions
   const actionsRow = el('div', 'case-detail-actions');
   actionsRow.appendChild(button('Preview Report', 'btn sm', () => {
-    openPdfPreview(caseToReportData(c), `case-${c.idLabel.replace(/[^A-Za-z0-9]/g, '') || 'log'}.pdf`);
+    void (async () => {
+      const data = caseToReportData(c);
+      // redraw the saved YOLO detections onto the thumbnail so the PDF matches the panel
+      const img = await fetchCaseImage(c.imagePath, legsFromAnalysis(c.analysisRaw));
+      if (img) {
+        data.imageUrl = img.url;
+        data.imageFormat = img.format;
+        data.imageLabel = img.label;
+      }
+      openPdfPreview(data, `case-${c.idLabel.replace(/[^A-Za-z0-9]/g, '') || 'log'}.pdf`);
+    })();
   }));
+  if (opts.onEdit) actionsRow.appendChild(button('Edit', 'btn sm ghost', opts.onEdit));
+  if (opts.onDelete) actionsRow.appendChild(button('Delete', 'btn sm ghost', opts.onDelete));
   detail.appendChild(actionsRow);
 
   return detail;
@@ -437,6 +514,9 @@ export function renderDatabase(host: HTMLElement): void {
   countLine.appendChild(refreshBtn);
   const countText = el('span', '', '');
   countLine.prepend(countText);
+  const note = el('div', 'case-note');
+  note.hidden = true;
+  body.appendChild(note);
   const list = el('div', 'case-list');
   body.appendChild(list);
   const pager = el('div', 'case-pager');
@@ -459,6 +539,15 @@ export function renderDatabase(host: HTMLElement): void {
   let statusFilter = 'all';
   let page = 1;
   const expanded = new Set<string>();
+
+  let noteTimer: number | undefined;
+  const flash = (text: string, warn = false): void => {
+    note.textContent = text;
+    note.classList.toggle('warn', warn);
+    note.hidden = false;
+    window.clearTimeout(noteTimer);
+    noteTimer = window.setTimeout(() => { note.hidden = true; }, 6000);
+  };
 
   const filteredCases = (): UnifiedCase[] => {
     const q = query.trim().toLowerCase();
@@ -509,7 +598,11 @@ export function renderDatabase(host: HTMLElement): void {
   };
 
   const buildDetail = (c: UnifiedCase): HTMLElement => {
-    return renderCaseCardDetail(c, { onConfirm: (causeId) => { void confirmCause(c, causeId); } });
+    return renderCaseCardDetail(c, {
+      onConfirm: (causeId) => { void confirmCause(c, causeId); },
+      onEdit: () => { openCaseModal(c); },
+      onDelete: () => { void deleteUnified(c); },
+    });
   };
 
   const buildCard = (c: UnifiedCase): HTMLElement => {
@@ -529,8 +622,13 @@ export function renderDatabase(host: HTMLElement): void {
 
     head.appendChild(el('span', 'case-ts', fmtTime(c.timestamp)));
 
-    const sourceLabel = c.source === 'both' ? 'synced' : c.source;
-    const badge = el('span', `case-source ${c.source === 'both' ? 'synced' : c.source}`, sourceLabel);
+    const sourceMeta = c.source === 'both'
+      ? { cls: 'synced', label: 'Synced', tip: 'Matched between local and server records (same timestamp and defect type)' }
+      : c.source === 'server'
+        ? { cls: 'server', label: 'Server only', tip: "Exists on the server; not found in this browser's local storage" }
+        : { cls: 'local', label: 'Local only', tip: 'Saved on this device, not yet confirmed on the server' };
+    const badge = el('span', `case-source ${sourceMeta.cls}`, sourceMeta.label);
+    badge.title = sourceMeta.tip;
     head.appendChild(badge);
 
     const toggle = () => {
@@ -627,6 +725,174 @@ export function renderDatabase(host: HTMLElement): void {
       }),
     }).catch((err) => console.warn('case sync failed', err));
     await refresh();
+  }
+
+  /** Delete one case from the local store and, when present, the server log. */
+  async function deleteUnified(c: UnifiedCase): Promise<void> {
+    if (!confirm(`Delete case ${c.idLabel}? This removes it from this browser and the server case log.`)) return;
+    try {
+      if (c.serverCaseId) await apiDeleteCase(c.serverCaseId);
+      if (c.localId != null) await deleteLocalCase(c.localId);
+      flash(`Case ${c.idLabel} deleted.`);
+      await refresh();
+    } catch (err) {
+      console.error('delete case failed', err);
+      flash('Could not delete the case. See console for details.', true);
+    }
+  }
+
+  /** Edit a case. Writes local + server (whichever side the row has). */
+  function openCaseModal(existing: UnifiedCase): void {
+    const overlay = el('div', 'pdf-modal');
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Edit case');
+
+    const modal = el('div', 'pdf-modal-panel case-modal-panel');
+    const head = el('div', 'pdf-modal-head');
+    head.appendChild(el('span', 'pdf-modal-title', `Edit ${existing.idLabel}`));
+    modal.appendChild(head);
+
+    const form = el('div', 'case-form');
+    const field = (label: string, control: HTMLElement): HTMLElement => {
+      const f = el('label', 'case-field');
+      f.appendChild(el('span', 'case-field-label', label));
+      f.appendChild(control);
+      form.appendChild(f);
+      return f;
+    };
+
+    const materialSel = el('select', 'case-field-input') as HTMLSelectElement;
+    materialSel.innerHTML = '<option value="">Not recorded</option>'
+      + Object.entries(MATERIALS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
+    materialSel.value = existing.material ?? '';
+    field('Material', materialSel);
+
+    const defectSel = el('select', 'case-field-input') as HTMLSelectElement;
+    defectSel.innerHTML = '<option value="">Unchanged</option>'
+      + DEFECT_CHOICES.map((d) => `<option value="${d.label}">${d.label}</option>`).join('');
+    defectSel.value = existing.defectLabel
+      && DEFECT_CHOICES.some((d) => d.label === existing.defectLabel)
+      ? existing.defectLabel
+      : '';
+    field('Defect type', defectSel);
+
+    const selectedSymptoms = new Set<string>(existing.symptoms);
+    const chips = el('div', 'case-chips');
+    for (const [id, info] of Object.entries(SYMPTOMS)) {
+      const chip = button(info.label, 'case-chip', () => {
+        if (selectedSymptoms.has(id)) selectedSymptoms.delete(id);
+        else selectedSymptoms.add(id);
+        chip.classList.toggle('on', selectedSymptoms.has(id));
+      });
+      if (selectedSymptoms.has(id)) chip.classList.add('on');
+      chips.appendChild(chip);
+    }
+    const symField = el('div', 'case-field');
+    symField.appendChild(el('span', 'case-field-label', 'Symptoms'));
+    symField.appendChild(chips);
+    form.appendChild(symField);
+
+    const causeSel = el('select', 'case-field-input') as HTMLSelectElement;
+    causeSel.innerHTML = '<option value="">Open / not resolved</option>'
+      + Object.entries(CAUSES).map(([id, info]) => `<option value="${id}">${info.name}</option>`).join('');
+    const existingCauseId = existing?.resolvedCause
+      ? (CAUSES[existing.resolvedCause as CauseId]
+        ? existing.resolvedCause
+        : CAUSE_ID_BY_NAME[existing.resolvedCause] ?? '')
+      : '';
+    causeSel.value = existingCauseId;
+    field('Confirmed cause', causeSel);
+
+    const notesArea = el('textarea', 'case-field-input case-notes') as HTMLTextAreaElement;
+    notesArea.rows = 3;
+    notesArea.placeholder = 'What fixed it / anything worth remembering';
+    notesArea.value = existing?.notes ?? '';
+    field('Notes', notesArea);
+
+    modal.appendChild(form);
+
+    const status = el('div', 'case-form-status', '');
+    status.hidden = true;
+    modal.appendChild(status);
+
+    const actions = el('div', 'pdf-modal-actions');
+    const cancel = button('Cancel', 'btn ghost', () => close());
+    const saveBtn = button('Save', 'btn primary');
+    actions.appendChild(cancel);
+    actions.appendChild(saveBtn);
+    modal.appendChild(actions);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    function close(): void {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+    }
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    materialSel.focus();
+
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      const material = materialSel.value || null;
+      const defectLabel = defectSel.value || null;
+      const causeId = (causeSel.value || null) as CauseId | null;
+      const notes = notesArea.value.trim() || null;
+      const symptoms = [...selectedSymptoms] as SymptomId[];
+      const defectId = defectLabel
+        ? (DEFECT_CHOICES.find((d) => d.label === defectLabel)?.defectId ?? 'missing-dot')
+        : null;
+      const causeName = causeId ? CAUSES[causeId].name : null;
+
+      try {
+        const patch: Partial<CaseRecord> = {
+          material: material ?? '',
+          symptoms,
+          notes: notes ?? undefined,
+          resolvedCause: causeId ?? undefined,
+        };
+        if (defectId) patch.defectId = defectId as DefectId;
+        if (causeId) patch.topCause = causeId;
+
+        if (existing.localId != null) {
+          await patchCase(existing.localId, patch);
+        } else {
+          // server-only row: keep material/symptoms in a local companion that
+          // dedups with the server record (same timestamp + defect)
+          const companionDefect = (defectId ?? existing.defectId) as DefectId | null;
+          if (companionDefect) {
+            await saveCase({
+              timestamp: existing.timestamp,
+              material: material ?? '',
+              defectId: companionDefect,
+              symptoms,
+              topCause: causeId
+                ?? (existing.rankedCauses[0]?.cause as CauseId | undefined)
+                ?? 'equipment-inspection',
+              resolvedCause: causeId ?? undefined,
+              notes: notes ?? undefined,
+            });
+          }
+        }
+        if (existing.serverCaseId) {
+          const feedback: Record<string, unknown> = { actual_cause: causeName, notes };
+          if (defectLabel) feedback.confirmed_defects = [defectLabel];
+          await apiUpdateCase(existing.serverCaseId, { engineer_feedback: feedback });
+        }
+        close();
+        await refresh();
+      } catch (err) {
+        console.error('case save failed', err);
+        status.textContent = 'Could not save the case. See console for details.';
+        status.hidden = false;
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      }
+    };
   }
 
   // Events ---------------------------------------------------------------

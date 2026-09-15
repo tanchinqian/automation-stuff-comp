@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-08-21T00:00:00Z",
-  "title": "Design System: DISPENSE.AI",
+  "title": "Design System: PasteTrace",
   "extensions": {
     "colorMeta": {
       "phosphor-green": { "role": "primary", "displayName": "Phosphor Green", "canonical": "#2ee6a8" },
@@ -19,7 +19,21 @@
       "console-ink": { "role": "neutral", "displayName": "Console Ink", "canonical": "#d7dde6" },
       "console-ink-dim": { "role": "neutral", "displayName": "Console Ink Dim", "canonical": "#8a93a6" },
       "console-ink-faint": { "role": "neutral", "displayName": "Console Ink Faint", "canonical": "#5a6272" },
-      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#232a38" }
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#232a38" },
+      "light-surface-0": { "role": "neutral", "displayName": "Light Surface 0", "canonical": "#eceff2" },
+      "light-surface-1": { "role": "neutral", "displayName": "Light Surface 1", "canonical": "#f6f8fa" },
+      "light-surface-2": { "role": "neutral", "displayName": "Light Surface 2", "canonical": "#ffffff" },
+      "light-surface-3": { "role": "neutral", "displayName": "Light Surface 3", "canonical": "#e2e7ec" },
+      "light-hairline": { "role": "neutral", "displayName": "Light Hairline", "canonical": "#c6cfd8" },
+      "light-ink": { "role": "neutral", "displayName": "Light Ink", "canonical": "#1b222a" },
+      "light-ink-dim": { "role": "neutral", "displayName": "Light Ink Dim", "canonical": "#4c5864" },
+      "light-ink-faint": { "role": "neutral", "displayName": "Light Ink Faint", "canonical": "#78848f" },
+      "light-brand": { "role": "primary", "displayName": "Light Brand (Steel Blue)", "canonical": "#33627f" },
+      "light-on-brand": { "role": "primary", "displayName": "Light On Brand", "canonical": "#ffffff" },
+      "light-status-good": { "role": "secondary", "displayName": "Light Status Good", "canonical": "#2f7d4f" },
+      "light-status-warn": { "role": "secondary", "displayName": "Light Status Warn", "canonical": "#8a5a00" },
+      "light-status-fail": { "role": "secondary", "displayName": "Light Status Fail", "canonical": "#b3202c" },
+      "light-chat-user": { "role": "secondary", "displayName": "Light Chat User Blue", "canonical": "#2f6fbf" }
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "Panel titles and brand head." },
@@ -86,31 +100,40 @@
   ],
   "narrative": {
     "northStar": "The Precision Lab Console",
-    "overview": "DISPENSE.AI reads as a precision laboratory instrument meets a factory HMI terminal: a near-black control surface, phosphor-green readouts, monospace numerals, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: crisp corners, thin borders, tabular numerals, and status conveyed through a single disciplined accent rather than decorative color.",
+    "overview": "PasteTrace reads as a precision laboratory instrument meets a factory HMI terminal: a dark control surface by default (with a light mode of the same identity), muted steel-blue accents, monospace data, and hairline separators. The density is deliberately high (a cockpit, not an airy gallery) because the visitor is an engineer scanning data under time pressure. Every element carries the language of instrumentation: sharp corners, thin borders, tabular numerals, and status conveyed through disciplined semantic color rather than decoration.",
     "keyCharacteristics": [
-      "Dark charcoal surfaces with a single phosphor-green accent (plus amber/danger reserved for semantic states).",
-      "Monospace for numerals, labels, and panel titles; sans-serif for body and descriptions.",
-      "Dense, cockpit-grade spacing with hairline separators and tight, precise cards.",
-      "Instrument markers: corner ticks, scanline texture, cause-tree visuals, tabular numerals."
+      "Two modes of one identity: Steel Blue dark (default) and Steel Blue light, toggled once for the whole console.",
+      "One accent (steel blue) for brand and interactive controls; amber/red/green reserved for semantic status; a separate data-viz ramp for charts.",
+      "Monospace for numerals, labels, IDs, and technical values; sans-serif for body and section titles.",
+      "Flat, hairline-separated surfaces; no decorative shadows or neon glows; sharp 2-4px corners."
     ],
     "rules": [
-      { "name": "The One Voice Rule", "body": "The phosphor-green accent is the only page accent. Amber and red are used only to carry semantic status (warning, defect, danger); blue only for the user chat. Any new color must earn a semantic role before it may appear.", "section": "colors" },
+      { "name": "The One Voice Rule",       "body": "One accent (steel blue) carries brand and interaction. Amber, red, and green exist only as semantic status; blue only as the user-chat tint. Any new color must earn a semantic role before it may appear.",
+      "section": "colors"
+    },
+    {
+      "name": "The Role Separation Rule",
+      "body": "A long, high-scoring cause bar is not 'good': charts use the data-viz ramp, never the status-good or brand tokens.",
+      "section": "colors"
+    },
       { "name": "The Tabular Rule", "body": "All numeric readouts set font-variant-numeric: tabular-nums so values align in columns and feel like instrument readouts.", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat and separated by tone and hairline borders. The phosphor glow appears only as a state response (active, selected, hover), never as ambient decoration.", "section": "elevation" }
+      { "name": "The Flat-By-Default Rule",       "body": "Surfaces are flat and separated by tone and hairline borders. Hover, active, and selected states are communicated with border color, text color, and low-opacity tints; colored side-borders, ambient glows, and drop shadows are not part of the language.", "section": "elevation" }
     ],
     "dos": [
-      "Do keep phosphor-green as the single accent; use amber/red only for semantic status and blue only for the user chat.",
+      "Do keep a single accent for brand and interactive; use status hues only for status and the data-viz ramp for charts.",
       "Do set every numeric readout in mono with tabular-nums.",
       "Do animate bars and reveals with transform/opacity only (scaleX), and honor prefers-reduced-motion.",
       "Do show visible :focus-visible rings on all interactive controls.",
-      "Do keep the flat, tonal, hairline-separated surface model; no decorative drop shadows."
+      "Do keep the flat, tonal, hairline-separated surface model; separation comes from tone and borders.",
+      "Do keep text and borders inside the documented tokens and scales."
     ],
     "donts": [
-      "Don't add a second accent color or neon glows; the phosphor green is the whole palette's voice.",
+      "Don't add a second accent, neon glows, gradients, or decorative drop shadows.",
       "Don't animate width/height (layout thrash); use transform.",
-      "Don't use thick colored side-borders on cards or bubbles (reads as an AI tell); use tinted backgrounds and full hairlines instead.",
-      "Don't switch themes between sections; the page is dark-mode-only and locked.",
-      "Don't hide focus outlines or ship pill-shaped containers for standard cards."
+      "Don't use thick colored side-borders on cards or bubbles; use tinted backgrounds and full hairlines instead.",
+      "Don't switch themes between sections; light and dark are two modes of the same Steel Blue system, toggled once for the whole console via the topbar control.",
+      "Don't hide focus outlines, ship pill-shaped containers for standard cards, or use em-dashes in visible copy.",
+      "Don't use mono for section titles or body prose."
     ]
   }
 }

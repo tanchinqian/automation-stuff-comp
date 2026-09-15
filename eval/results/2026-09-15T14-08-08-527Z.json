@@ -1,0 +1,756 @@
+{
+  "run": {
+    "startedAt": "2026-09-15T14:08:08.527Z",
+    "parser": "HeuristicNlu (on-device NLU floor, no network/browser)",
+    "scorer": "runDiagnosis (identifyDefect + scoreCauses), baseline priors",
+    "materialDefault": "solder-paste",
+    "thresholds": {
+      "LOW_DEFECT_CONFIDENCE": 0.35,
+      "LOW_TOP_CAUSE_SCORE": 0.2
+    }
+  },
+  "summary": {
+    "totalCases": 16,
+    "known": {
+      "total": 11,
+      "passed": 9,
+      "matchRate": 0.8181818181818182,
+      "defectMatch": {
+        "passed": 11,
+        "scored": 11
+      },
+      "topCauseMatch": {
+        "passed": 9,
+        "scored": 11
+      }
+    },
+    "lowConfidence": {
+      "total": 5,
+      "correctlyFlagged": 3,
+      "flagRate": 0.6
+    },
+    "failedCaseIds": [
+      "known-shape-needle-height",
+      "known-oversized-dispense-time",
+      "out-of-scope-stray-token",
+      "ambiguous-contradictory"
+    ]
+  },
+  "cases": [
+    {
+      "id": "known-missing-air-bubble",
+      "kind": "known",
+      "description": "The head goes through the cycle but the pad gets skipped completely, and it sometimes happens with no set pattern.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "missing-occasionally",
+          "occurrence-occasional"
+        ]
+      },
+      "expected": {
+        "defect": "missing-dot",
+        "topCause": "air-bubble"
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.8049999999999999,
+        "confidence": 0.7571428571428571,
+        "activeSymptomCount": 2,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.8049999999999999
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.7076470588235294
+          },
+          {
+            "causeId": "syringe-empty",
+            "score": 0.6364705882352941
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-undersized-nozzle-blockage",
+      "kind": "known",
+      "description": "Every time the machine fires, the pad comes out thinner than the drawing calls for, and the amount drops steadily through the shift. The needle bore looks partly restricted when we pull it.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "amount-too-small",
+          "occurrence-continuous",
+          "volume-decreases-over-time"
+        ],
+        "emphasis": [
+          "amount-too-small",
+          "occurrence-continuous",
+          "volume-decreases-over-time"
+        ]
+      },
+      "expected": {
+        "defect": "undersized-dot",
+        "topCause": "nozzle-blockage"
+      },
+      "actual": {
+        "defectId": "undersized-dot",
+        "defectName": "Undersized Dispensing Dot",
+        "topCauseId": "nozzle-blockage",
+        "topCauseName": "Partially blocked nozzle",
+        "topCauseScore": 0.7899999999999999,
+        "confidence": 0.8057142857142856,
+        "activeSymptomCount": 3,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.7899999999999999
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.7687826086956521
+          },
+          {
+            "causeId": "syringe-empty",
+            "score": 0.7067391304347825
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-oversized-viscosity",
+      "kind": "known",
+      "description": "We switched to a different material lot and now every time the head fires the pad gets too much material - the dots are thick blobs.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "amount-too-large",
+          "occurrence-continuous",
+          "recent-change-material"
+        ],
+        "emphasis": [
+          "amount-too-large",
+          "occurrence-continuous",
+          "recent-change-material"
+        ]
+      },
+      "expected": {
+        "defect": "oversized-dot",
+        "topCause": "material-viscosity"
+      },
+      "actual": {
+        "defectId": "oversized-dot",
+        "defectName": "Oversized Dispensing Dot",
+        "topCauseId": "material-viscosity",
+        "topCauseName": "Material viscosity change",
+        "topCauseScore": 0.7839999999999999,
+        "confidence": 0.6033333333333333,
+        "activeSymptomCount": 3,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "material-viscosity",
+            "score": 0.7839999999999999
+          },
+          {
+            "causeId": "dispense-time",
+            "score": 0.5386666666666666
+          },
+          {
+            "causeId": "pressure-unstable",
+            "score": 0.46547619047619043
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-shape-needle-height",
+      "kind": "known",
+      "description": "Since the needle height was readjusted to sit higher above the board, the dots come out squashed and the outline is not round.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "shape-irregular",
+          "height-distance"
+        ]
+      },
+      "expected": {
+        "defect": "irregular-shape",
+        "topCause": "needle-height"
+      },
+      "actual": {
+        "defectId": "irregular-shape",
+        "defectName": "Irregular / Abnormal Dispensing Shape",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.7671621621621622,
+        "confidence": 0.745,
+        "activeSymptomCount": 2,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.7671621621621622
+          },
+          {
+            "causeId": "needle-height",
+            "score": 0.76
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.6515675675675676
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": false,
+      "pass": false
+    },
+    {
+      "id": "known-spread-viscosity",
+      "kind": "known",
+      "description": "The paste runs well past the pad edges and the surface looks wet, so the footprint ends up way bigger than the stencil opening.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "amount-too-large",
+          "spread-beyond",
+          "surface-wetting"
+        ],
+        "material": "solder-paste"
+      },
+      "expected": {
+        "defect": "excessive-spread",
+        "topCause": "material-viscosity"
+      },
+      "actual": {
+        "defectId": "excessive-spread",
+        "defectName": "Excessive Material Spreading",
+        "topCauseId": "material-viscosity",
+        "topCauseName": "Material viscosity change",
+        "topCauseScore": 0.7839999999999999,
+        "confidence": 0.8057142857142856,
+        "activeSymptomCount": 3,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "material-viscosity",
+            "score": 0.7839999999999999
+          },
+          {
+            "causeId": "needle-height",
+            "score": 0.5884313725490196
+          },
+          {
+            "causeId": "temperature",
+            "score": 0.5841372549019608
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-inconsistent-voids",
+      "kind": "known",
+      "description": "The bead size varies from pad to pad, and when we look closely there are bubbles trapped in the material.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "inconsistent-size",
+          "material-voids"
+        ]
+      },
+      "expected": {
+        "defect": "inconsistent-volume",
+        "topCause": "air-bubble"
+      },
+      "actual": {
+        "defectId": "inconsistent-volume",
+        "defectName": "Inconsistent Dispensing Volume",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.8049999999999999,
+        "confidence": 0.7355555555555555,
+        "activeSymptomCount": 2,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.8049999999999999
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.6204843304843305
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.5765925925925927
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-missing-single-location",
+      "kind": "known",
+      "description": "There is one spot on the panel that never gets any paste even though the rest is coated properly. It is the same place every cycle, and only that one place is affected. We also just swapped in a new needle.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "missing-location",
+          "recent-change-nozzle",
+          "single-location"
+        ],
+        "material": "solder-paste",
+        "emphasis": [
+          "missing-location",
+          "recent-change-nozzle",
+          "single-location"
+        ]
+      },
+      "expected": {
+        "defect": "missing-dot",
+        "topCause": "nozzle-blockage"
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "nozzle-blockage",
+        "topCauseName": "Partially blocked nozzle",
+        "topCauseScore": 0.7899999999999999,
+        "confidence": 0.5871428571428571,
+        "activeSymptomCount": 3,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.7899999999999999
+          },
+          {
+            "causeId": "air-bubble",
+            "score": 0.7441304347826087
+          },
+          {
+            "causeId": "syringe-empty",
+            "score": 0.48608695652173906
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-inconsistent-pressure",
+      "kind": "known",
+      "description": "The operator noticed the gauge needle swinging back and forth during the pour, and the weight of each deposit swings with it.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "pressure-visible-fluctuation"
+        ]
+      },
+      "expected": {
+        "defect": "inconsistent-volume",
+        "topCause": "pressure-unstable"
+      },
+      "actual": {
+        "defectId": "inconsistent-volume",
+        "defectName": "Inconsistent Dispensing Volume",
+        "topCauseId": "pressure-unstable",
+        "topCauseName": "Unstable dispensing pressure",
+        "topCauseScore": 0.6069999999999999,
+        "confidence": 0.6977777777777777,
+        "activeSymptomCount": 1,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "pressure-unstable",
+            "score": 0.6069999999999999
+          },
+          {
+            "causeId": "air-bubble",
+            "score": 0.581
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.482
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-undersized-cured-tip",
+      "kind": "known",
+      "description": "The needle tip has dried residue caked on it and each cycle pushes less and less through, with no other changes made on the line.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "volume-decreases-over-time",
+          "needle-tip-buildup"
+        ]
+      },
+      "expected": {
+        "defect": "undersized-dot",
+        "topCause": "material-cure"
+      },
+      "actual": {
+        "defectId": "undersized-dot",
+        "defectName": "Undersized Dispensing Dot",
+        "topCauseId": "material-cure",
+        "topCauseName": "Material curing / skinning in needle",
+        "topCauseScore": 0.742,
+        "confidence": 0.7571428571428571,
+        "activeSymptomCount": 2,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "material-cure",
+            "score": 0.742
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.7027499999999999
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.6674999999999998
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "known-oversized-dispense-time",
+      "kind": "known",
+      "description": "We changed pressure on the line on Monday, and now every time the head moves each pad gets too much material and it floods out toward the neighbouring pads.",
+      "note": "Observed: the engine ranks material-viscosity above the explicitly pinned parameter change. Kept as a known gap, not retuned to match output.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "amount-too-large",
+          "spread-beyond",
+          "occurrence-continuous",
+          "recent-change-parameter"
+        ],
+        "emphasis": [
+          "amount-too-large",
+          "spread-beyond",
+          "occurrence-continuous",
+          "recent-change-parameter"
+        ]
+      },
+      "expected": {
+        "defect": "oversized-dot",
+        "topCause": "dispense-time"
+      },
+      "actual": {
+        "defectId": "oversized-dot",
+        "defectName": "Oversized Dispensing Dot",
+        "topCauseId": "material-viscosity",
+        "topCauseName": "Material viscosity change",
+        "topCauseScore": 0.7839999999999999,
+        "confidence": 0.8866666666666667,
+        "activeSymptomCount": 4,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "material-viscosity",
+            "score": 0.7839999999999999
+          },
+          {
+            "causeId": "dispense-time",
+            "score": 0.702
+          },
+          {
+            "causeId": "pressure-unstable",
+            "score": 0.5941666666666666
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": false,
+      "pass": false
+    },
+    {
+      "id": "known-shape-speed-motion",
+      "kind": "known",
+      "description": "Since the axis was set to travel faster between pads, the dots have a drawn out streak on one side.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "dot-elongated",
+          "speed-slow-fast"
+        ]
+      },
+      "expected": {
+        "defect": "irregular-shape",
+        "topCause": "speed-motion"
+      },
+      "actual": {
+        "defectId": "irregular-shape",
+        "defectName": "Irregular / Abnormal Dispensing Shape",
+        "topCauseId": "speed-motion",
+        "topCauseName": "Motion / speed setting",
+        "topCauseScore": 0.748,
+        "confidence": 0.745,
+        "activeSymptomCount": 2,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "speed-motion",
+            "score": 0.748
+          },
+          {
+            "causeId": "air-bubble",
+            "score": 0.6763004484304931
+          },
+          {
+            "causeId": "needle-height",
+            "score": 0.5999103139013451
+          }
+        ]
+      },
+      "defectOk": true,
+      "causeOk": true,
+      "pass": true
+    },
+    {
+      "id": "vague-unspecified",
+      "kind": "low-confidence",
+      "description": "A colleague flagged the output as odd, but I would have to stand at the machine before I could say what is actually wrong.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": []
+      },
+      "expected": {
+        "lowConfidence": true
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.105,
+        "confidence": 0.15,
+        "activeSymptomCount": 0,
+        "flaggedLowConfidence": true,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.105
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.09
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.084
+          }
+        ]
+      },
+      "defectOk": null,
+      "causeOk": null,
+      "pass": true
+    },
+    {
+      "id": "vague-no-detail",
+      "kind": "low-confidence",
+      "description": "We are seeing problems with the deposits again and I am honestly not sure how to characterise them.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": []
+      },
+      "expected": {
+        "lowConfidence": true
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.105,
+        "confidence": 0.15,
+        "activeSymptomCount": 0,
+        "flaggedLowConfidence": true,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.105
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.09
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.084
+          }
+        ]
+      },
+      "defectOk": null,
+      "causeOk": null,
+      "pass": true
+    },
+    {
+      "id": "out-of-scope-reflow-oven",
+      "kind": "low-confidence",
+      "description": "The reflow oven conveyor keeps changing pace between shifts and the maintenance crew is handling it separately.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [],
+        "emphasis": []
+      },
+      "expected": {
+        "lowConfidence": true
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "air-bubble",
+        "topCauseName": "Air trapped in syringe / supply",
+        "topCauseScore": 0.105,
+        "confidence": 0.15,
+        "activeSymptomCount": 0,
+        "flaggedLowConfidence": true,
+        "topCauses": [
+          {
+            "causeId": "air-bubble",
+            "score": 0.105
+          },
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.09
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.084
+          }
+        ]
+      },
+      "defectOk": null,
+      "causeOk": null,
+      "pass": true
+    },
+    {
+      "id": "out-of-scope-stray-token",
+      "kind": "low-confidence",
+      "description": "The conveyor speed on the reflow oven drifts between shifts and the maintenance team wants it looked at.",
+      "note": "Adversarial probe: a single incidental token (speed) is still a dispensing symptom id to the keyword tier. Expected to fail until the parser is context-aware.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "speed-slow-fast"
+        ]
+      },
+      "expected": {
+        "lowConfidence": true
+      },
+      "actual": {
+        "defectId": "irregular-shape",
+        "defectName": "Irregular / Abnormal Dispensing Shape",
+        "topCauseId": "speed-motion",
+        "topCauseName": "Motion / speed setting",
+        "topCauseScore": 0.38049999999999995,
+        "confidence": 0.7025,
+        "activeSymptomCount": 1,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "speed-motion",
+            "score": 0.38049999999999995
+          },
+          {
+            "causeId": "air-bubble",
+            "score": 0.35
+          },
+          {
+            "causeId": "material-viscosity",
+            "score": 0.294
+          }
+        ]
+      },
+      "defectOk": null,
+      "causeOk": null,
+      "pass": false
+    },
+    {
+      "id": "ambiguous-contradictory",
+      "kind": "low-confidence",
+      "description": "Every time I look the results are different - one pad flooded, the next one barely gets a thin line, and occasionally a whole area is skipped.",
+      "note": "Contradictory volume signals (over, under, missing). A human cannot name one defect; the engine currently still picks a confident top defect.",
+      "parsed": {
+        "engine": "heuristic",
+        "symptoms": [
+          "amount-too-small",
+          "missing-occasionally",
+          "spread-beyond",
+          "occurrence-continuous",
+          "occurrence-occasional"
+        ],
+        "emphasis": [
+          "amount-too-small",
+          "missing-occasionally",
+          "spread-beyond",
+          "occurrence-continuous",
+          "occurrence-occasional"
+        ]
+      },
+      "expected": {
+        "lowConfidence": true
+      },
+      "actual": {
+        "defectId": "missing-dot",
+        "defectName": "Missing Dispensing Dot",
+        "topCauseId": "nozzle-blockage",
+        "topCauseName": "Partially blocked nozzle",
+        "topCauseScore": 0.7899999999999999,
+        "confidence": 0.6017142857142856,
+        "activeSymptomCount": 5,
+        "flaggedLowConfidence": false,
+        "topCauses": [
+          {
+            "causeId": "nozzle-blockage",
+            "score": 0.7899999999999999
+          },
+          {
+            "causeId": "air-bubble",
+            "score": 0.7464741474147414
+          },
+          {
+            "causeId": "pressure-unstable",
+            "score": 0.6756600660066007
+          }
+        ]
+      },
+      "defectOk": null,
+      "causeOk": null,
+      "pass": false
+    }
+  ]
+}

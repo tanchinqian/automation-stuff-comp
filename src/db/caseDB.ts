@@ -1,5 +1,34 @@
 import type { CauseId, DefectId, SymptomId } from '../engine/types';
 
+/**
+ * 8D report fields captured with a case. Mirrors the server's `report_data`
+ * object (snake_case on the wire) so a past case can repopulate the report
+ * form from its own record instead of the browser's localStorage.
+ */
+export interface CaseReportData {
+  employeeName?: string;
+  employeeId?: string;
+  machineId?: string;
+  affectedCount?: string;
+  d3Status?: string;
+  d3Action?: string;
+  d3CompletedBy?: string;
+  d3CompletedAt?: string;
+  d4Status?: string;
+  d4Method?: string;
+  d5Status?: string;
+  d5TargetDate?: string;
+  d5Responsible?: string;
+  d6Status?: string;
+  d6Action?: string;
+  /** form field `d6Verified`, named for the server schema */
+  d6VerifiedEffective?: string;
+  notes?: string;
+  confirmedCause?: string;
+  closedBy?: string;
+  closedDate?: string;
+}
+
 export interface CaseRecord {
   id?: number;
   timestamp: number;
@@ -13,6 +42,8 @@ export interface CaseRecord {
   rankedCauses?: { causeId: CauseId; score: number }[];
   /** recommended troubleshooting step titles */
   actionPlan?: string[];
+  /** optional 8D report fields saved with this case */
+  reportData?: CaseReportData;
 }
 
 export interface PriorStats {
@@ -22,6 +53,8 @@ export interface PriorStats {
   successRate: number;
 }
 
+// Kept for backward compatibility: renaming the database would orphan cases
+// already stored in users' browsers.
 const DB_NAME = 'nsw-dispense-ai';
 const STORE = 'cases';
 
@@ -125,6 +158,35 @@ export async function clearCases(): Promise<void> {
     tx.objectStore(STORE).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Delete a single stored case by its IndexedDB id. */
+export async function deleteCase(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Merge a partial edit into a stored case, keeping its id and opened time. */
+export async function patchCase(id: number, patch: Partial<CaseRecord>): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const get = store.get(id);
+    get.onsuccess = () => {
+      const existing = get.result as CaseRecord | undefined;
+      if (!existing) return resolve();
+      const merged: CaseRecord = { ...existing, ...patch, id, timestamp: existing.timestamp };
+      store.put(merged);
+      tx.oncomplete = () => resolve();
+    };
+    get.onerror = () => reject(get.error);
   });
 }
 

@@ -150,6 +150,22 @@ export async function logCase(data: CaseLog): Promise<{ case_id: string }> {
   return (await res.json()) as { case_id: string };
 }
 
+/** Merge a partial edit into one stored case (learning database CRUD). */
+export async function updateCase(caseId: string, patch: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(caseId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) await parseError(res);
+}
+
+/** Delete a single stored case (learning database CRUD). */
+export async function deleteCase(caseId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' });
+  if (!res.ok) await parseError(res);
+}
+
 /** Ask the learning database for similar historical cases. */
 export async function getSimilarCases(defectType: string): Promise<SimilarCasesResult> {
   const url = `${BASE_URL}/cases/similar?defect_type=${encodeURIComponent(defectType)}`;

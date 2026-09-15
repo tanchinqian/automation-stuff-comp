@@ -23,7 +23,7 @@ export function clear(node: HTMLElement): void {
 export function panel(title: string, hint = '', ...body: HTMLElement[]): HTMLElement {
   const p = el('section', 'panel');
   const head = el('div', 'panel-head');
-  head.appendChild(el('span', 'tick'));
+  head.appendChild(el('span', 'panel-mark'));
   const titleEl = document.createElement('h2');
   titleEl.className = 'title';
   titleEl.textContent = title;
