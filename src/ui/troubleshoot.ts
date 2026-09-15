@@ -7,6 +7,7 @@ import { el, clear, button, panel } from './dom';
 import { LlmRouter, HeuristicNlu } from '../nlu/llmRouter';
 import { getAllCases, priorOverrides, upsertCase } from '../db/caseDB';
 import { renderReportTab } from './report';
+import { getReportDrawerHost, openReportDrawer } from './reportDrawer';
 import { createInspectionPanel, type VisionResult } from './vision';
 import { boardClassToSymptoms } from '../vision/qualityScore';
 import { template } from './templates';
@@ -396,8 +397,28 @@ export function renderTroubleshoot(host: HTMLElement): void {
   mainCol.insertBefore(vision.panel, diagPanel);
 
   // ---- Sidebar: assistant chat ----
+  // Collapsible dock: starts as a narrow rail (an operator console shouldn't
+  // give a chatbot equal billing with the inspection/diagnosis workflow by
+  // default) and expands on demand, or automatically once the assistant has
+  // something proactive to say (see feedVision below).
   const chatPanel = panel('Assistant');
   chatPanel.classList.add('chat-sticky');
+  const chatHead = chatPanel.querySelector('.panel-head')! as HTMLElement;
+  const chatToggle = el('button', 'chat-toggle') as HTMLButtonElement;
+  chatToggle.type = 'button';
+  const chatToggleIcon = el('span', 'chat-toggle-icon', '▸');
+  const chatToggleLabel = el('span', 'chat-toggle-label', 'Assistant chat');
+  chatToggle.appendChild(chatToggleIcon);
+  chatToggle.appendChild(chatToggleLabel);
+  chatToggle.setAttribute('aria-label', 'Expand or collapse the assistant chat');
+  chatToggle.setAttribute('aria-expanded', 'false');
+  chatHead.appendChild(chatToggle);
+  const setChatOpen = (open: boolean): void => {
+    layout.classList.toggle('chat-open', open);
+    chatToggle.setAttribute('aria-expanded', String(open));
+    chatToggleIcon.textContent = open ? '◂' : '▸';
+  };
+  chatToggle.onclick = () => setChatOpen(!layout.classList.contains('chat-open'));
   const chatBody = chatPanel.querySelector('.panel-body')! as HTMLElement;
 
   const evidenceStrip = el('div', 'evidence-strip');
@@ -492,7 +513,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
     renderDiagnosis(diagBody, report, actions);
     diagnosed = true;
     updateEvidence();
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
+    renderReportTab(getReportDrawerHost());
   };
 
   // ---- Demo: jump straight to a completed diagnosis (dev/test aid) ----
@@ -710,8 +731,10 @@ export function renderTroubleshoot(host: HTMLElement): void {
     }
 
     userSay(`[Board] analyzed: ${r.board.dominantDefect.toUpperCase()}`);
-    // bring the diagnosis conversation into view automatically
+    // bring the diagnosis conversation into view automatically - the
+    // assistant has something proactive to say, so expand the dock
     switchTab('troubleshoot');
+    setChatOpen(true);
     chatPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     // kick off the Gemini consultation (not counted as an engineer turn)
     await sendTurn(
@@ -789,10 +812,19 @@ export function renderDiagnosis(
   hero.appendChild(conf);
   body.appendChild(hero);
 
+  // ---- Analysis details: reasoning + ranked causes + historical cases,
+  // grouped under one collapsible disclosure (closed by default) so the
+  // panel opens on the defect identity + action plan, not a wall of text.
+  const analysisDetails = el('details', 'diag-collapse');
+  analysisDetails.open = false;
+  const analysisSummary = el('summary', 'diag-collapse-summary', 'Analysis details (ranking, reasoning, historical cases)');
+  analysisDetails.appendChild(analysisSummary);
+  body.appendChild(analysisDetails);
+
   const reason = el('div', 'reasoning diag-section');
   reason.appendChild(el('div', 'rlabel', 'Why this ranking'));
   reason.appendChild(el('p', '', d.reasoning));
-  body.appendChild(reason);
+  analysisDetails.appendChild(reason);
 
   // ---- Ranked causes ----
   const causesSection = el('div', 'diag-section');
@@ -813,7 +845,7 @@ export function renderDiagnosis(
     row.appendChild(el('div', 'pct', `${(c.score * 100).toFixed(0)}%`));
     causesSection.appendChild(row);
   }
-  body.appendChild(causesSection);
+  analysisDetails.appendChild(causesSection);
 
   // ---- Similar historical cases (async, non-blocking) ----
   const defectType = analysis
@@ -828,9 +860,9 @@ export function renderDiagnosis(
   let scDivider: HTMLElement | null = null;
   if (defectType) {
     scDivider = el('div', 'section-divider');
-    body.appendChild(scDivider);
+    analysisDetails.appendChild(scDivider);
     scBlock = el('div', 'similar-cases');
-    body.appendChild(scBlock);
+    analysisDetails.appendChild(scBlock);
 
     // insert placeholder already done; fetch in the background with a 1s cap
     Promise.race([
@@ -853,11 +885,31 @@ export function renderDiagnosis(
           scDivider?.remove();
           return;
         }
-        scBlock.appendChild(el('div', 'sc-label', 'Historical cases'));
+        scBlock.appendChild(el('div', 'sc-label', 'Historical cases - confirmed cause breakdown'));
         scBlock.appendChild(el('div', 'sc-text', sc.message));
-        const graph = el('div', 'rc-graph');
-        scBlock.appendChild(graph);
-        renderHistoricalGraph(graph, defectType, d.causes[0]?.name ?? null, sc.total_cases);
+
+        // confirmed-cause frequency chart - reuses the same bar idiom as the
+        // ranked-causes "Cause Tree" above, so this reads as one visual
+        // language instead of a second chart type.
+        const entries = Object.entries(sc.confirmed_causes ?? {}).sort((a, b) => b[1] - a[1]);
+        if (entries.length) {
+          const chartWrap = el('div', 'sc-bars');
+          for (const [name, count] of entries) {
+            const pct = sc.total_cases ? Math.round((count / sc.total_cases) * 100) : 0;
+            const row = el('div', 'bar-row sc-bar-row');
+            const nameCell = el('div', 'name');
+            nameCell.appendChild(el('b', '', name));
+            row.appendChild(nameCell);
+            const track = el('div', 'bar-track');
+            const fill = el('div', 'bar-fill');
+            fill.style.width = `${Math.max(4, pct)}%`;
+            track.appendChild(fill);
+            row.appendChild(track);
+            row.appendChild(el('div', 'pct', `${count} (${pct}%)`));
+            chartWrap.appendChild(row);
+          }
+          scBlock.appendChild(chartWrap);
+        }
       })
       .catch(() => {
         scBlock?.remove();
@@ -972,7 +1024,7 @@ export function renderDiagnosis(
       }),
     }).catch((err) => console.warn('case sync to server failed', err));
 
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
+    renderReportTab(getReportDrawerHost());
     return id;
   };
 
@@ -1022,8 +1074,7 @@ export function renderDiagnosis(
     }
   });
   const reportBtn = button('Open Report', 'btn primary', () => {
-    renderReportTab(document.getElementById('tab-report') as HTMLElement);
-    switchTab('report');
+    openReportDrawer();
   });
   const newSessionBtn = button('Start New Session', 'btn ghost', () => {
     const host = document.getElementById('tab-troubleshoot');

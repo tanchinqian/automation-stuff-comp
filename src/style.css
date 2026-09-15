@@ -1,22 +1,41 @@
 ﻿:root {
-  --bg-0: #07090d;
-  --bg-1: #0d1016;
-  --bg-2: #12161f;
-  --bg-3: #1a1f2b;
-  --line: #232a38;
-  --line-soft: #1a202b;
-  --ink: #d7dde6;
-  --ink-dim: #8a93a6;
-  --ink-faint: #5a6272;
+  --bg-0: #0a0d12;
+  --bg-1: #10141b;
+  --bg-2: #161b24;
+  --bg-3: #1e2530;
+  --line: #2a3242;
+  --line-soft: #1f2634;
+  --ink: #dfe3ea;
+  --ink-dim: #8d96a8;
+  --ink-faint: #5c6577;
 
-  /* One accent + two semantic status hues. Locked across the whole app. */
-  --accent: #2ee6a8;
-  --accent-dim: #1fbf89;
-  --warn: #ffb64d;
-  --danger: #ff5f6d;
+  /* One accent + two semantic status hues. Locked across the whole app.
+     Desaturated vs. an earlier neon-green pass so it reads as calibrated
+     instrumentation rather than a decorative glow. */
+  --accent: #3fae8a;
+  --accent-dim: #2f8d70;
+  --warn: #d99a3f;
+  --danger: #c8555f;
 
   /* User-chat tint: muted, non-competing secondary, not a UI accent. */
-  --chat-user: #5aa9ff;
+  --chat-user: #5a8fc9;
+
+  /* Text readable on top of a solid --accent fill (e.g. primary buttons). */
+  --on-accent: #06130e;
+
+  /* Derived low-alpha washes/rings kept as vars (not inline rgba literals)
+     so both themes stay correct without hunting down hardcoded colors. */
+  --accent-wash-1: rgba(63, 174, 138, 0.05);
+  --accent-wash-2: rgba(63, 174, 138, 0.07);
+  --accent-wash-3: rgba(63, 174, 138, 0.10);
+  --accent-ring: rgba(63, 174, 138, 0.30);
+  --accent-select: rgba(63, 174, 138, 0.28);
+  --accent-tap: rgba(63, 174, 138, 0.16);
+  --warn-wash: rgba(217, 154, 63, 0.08);
+  --warn-border: rgba(217, 154, 63, 0.25);
+  --chat-user-wash: rgba(90, 143, 201, 0.08);
+  --surface-tint: rgba(255, 255, 255, 0.015);
+  --hover-tint: rgba(255, 255, 255, 0.02);
 
   /* Shape consistency lock: one radius scale for the entire console. */
   --r-2: 4px;
@@ -26,7 +45,45 @@
 
   --mono: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace;
   --sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  --glow: 0 0 14px rgba(46, 230, 168, 0.16);
+  --glow: 0 0 8px rgba(63, 174, 138, 0.10);
+}
+
+/* Light industrial theme. Same token names as :root (dark, default) so no
+   other rule in this file needs to know which theme is active. */
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-0: #eef1f5;
+  --bg-1: #f7f9fb;
+  --bg-2: #ffffff;
+  --bg-3: #e6eaf0;
+  --line: #d4dae3;
+  --line-soft: #e1e6ec;
+  --ink: #1b2230;
+  --ink-dim: #586176;
+  --ink-faint: #8a93a6;
+
+  --accent: #1f8c68;
+  --accent-dim: #156b50;
+  --warn: #a8681f;
+  --danger: #a83f48;
+
+  --chat-user: #2f6aa8;
+
+  --on-accent: #f5faf8;
+
+  --accent-wash-1: rgba(31, 140, 104, 0.06);
+  --accent-wash-2: rgba(31, 140, 104, 0.08);
+  --accent-wash-3: rgba(31, 140, 104, 0.12);
+  --accent-ring: rgba(31, 140, 104, 0.32);
+  --accent-select: rgba(31, 140, 104, 0.22);
+  --accent-tap: rgba(31, 140, 104, 0.14);
+  --warn-wash: rgba(168, 104, 31, 0.08);
+  --warn-border: rgba(168, 104, 31, 0.28);
+  --chat-user-wash: rgba(47, 106, 168, 0.08);
+  --surface-tint: rgba(0, 0, 0, 0.02);
+  --hover-tint: rgba(0, 0, 0, 0.03);
+
+  --glow: 0 0 6px rgba(31, 140, 104, 0.12);
 }
 
 * {
@@ -42,10 +99,8 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(1100px 500px at 70% -10%, rgba(46, 230, 168, 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(90, 169, 255, 0.05), transparent 60%),
-    var(--bg-0);
+  /* Flat by default: no ambient decorative gradients. */
+  background: var(--bg-0);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -75,7 +130,7 @@ body {
 }
 
 ::selection {
-  background: rgba(46, 230, 168, 0.3);
+  background: var(--accent-select);
 }
 
 /* Visible keyboard focus: high-contrast ring, never removed. */
@@ -92,7 +147,7 @@ body {
 .notes-area:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(46, 230, 168, 0.35);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 .skip-link {
@@ -102,7 +157,7 @@ body {
   z-index: 100;
   padding: 10px 16px;
   background: var(--accent);
-  color: #06130e;
+  color: var(--on-accent);
   font-family: var(--mono);
   font-size: 12px;
   border-radius: 0 0 var(--r-3) 0;
@@ -152,7 +207,7 @@ textarea,
 label,
 .freetext-row {
   touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(46, 230, 168, 0.18);
+  -webkit-tap-highlight-color: var(--accent-tap);
 }
 
 /* ---------- Top bar ---------- */
@@ -222,6 +277,22 @@ label,
   box-shadow: 0 0 8px var(--warn);
 }
 
+.theme-toggle {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--bg-2);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  color: var(--ink);
+  border-color: var(--accent-dim);
+}
+
 .nav-tabs {
   display: flex;
   gap: 4px;
@@ -264,8 +335,19 @@ label,
   align-items: start;
 }
 .layout.workspace {
-  grid-template-columns: minmax(0, 1fr) 380px;
+  /* Collapsed by default: a narrow dock rail, not equal billing with the
+     inspection/diagnosis workflow. Expands via the chat panel's own toggle. */
+  grid-template-columns: minmax(0, 1fr) 48px;
   align-items: start;
+  transition: grid-template-columns 0.2s ease;
+}
+.layout.workspace.chat-open {
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .layout.workspace {
+    transition: none;
+  }
 }
 
 /* Gap between stacked panels in the workbench main column. */
@@ -296,8 +378,8 @@ label,
   pointer-events: none;
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(255, 255, 255, 0.015) 0px,
-    rgba(255, 255, 255, 0.015) 1px,
+    var(--surface-tint) 0px,
+    var(--surface-tint) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -357,7 +439,7 @@ label,
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #06130e;
+  color: var(--on-accent);
   font-weight: 700;
 }
 .btn.primary:hover {
@@ -417,7 +499,7 @@ label,
 .opt.selected {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(46, 230, 168, 0.08);
+  background: var(--accent-wash-3);
   box-shadow: var(--glow);
 }
 
@@ -469,11 +551,52 @@ label,
 .chat-sticky {
   position: sticky;
   top: 76px;
+  min-width: 0;
 }
 @media (max-width: 980px) {
   .chat-sticky {
     position: static;
   }
+}
+.chat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  padding: 5px 8px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.chat-toggle:hover {
+  color: var(--ink);
+  border-color: var(--accent-dim);
+}
+.chat-toggle-icon {
+  color: var(--accent);
+  font-size: 12px;
+}
+/* Collapsed rail: hide the transcript/composer and the head label, keep the
+   tick + toggle so the panel still reads as a live, reachable control. */
+.layout.workspace:not(.chat-open) .chat-sticky .panel-body {
+  display: none;
+}
+.layout.workspace:not(.chat-open) .chat-sticky .panel-head .title,
+.layout.workspace:not(.chat-open) .chat-sticky .chat-toggle-label {
+  display: none;
+}
+.layout.workspace:not(.chat-open) .chat-sticky .panel-head {
+  justify-content: center;
+  padding: 12px 6px;
+}
+.layout.workspace:not(.chat-open) .chat-sticky .chat-toggle {
+  margin-left: 0;
 }
 .msg {
   display: flex;
@@ -523,10 +646,10 @@ label,
   max-width: 640px;
 }
 .msg.ai .bubble {
-  background: rgba(46, 230, 168, 0.05);
+  background: var(--accent-wash-1);
 }
 .msg.user .bubble {
-  background: rgba(90, 169, 255, 0.06);
+  background: var(--chat-user-wash);
 }
 
 /* ---------- Evidence strip ---------- */
@@ -572,9 +695,9 @@ label,
 /* ---------- Image gate notice ---------- */
 .gate-notice {
   padding: 10px 12px;
-  border: 1px solid rgba(255, 182, 77, 0.25);
+  border: 1px solid var(--warn-border);
   border-radius: var(--r-4);
-  background: rgba(255, 182, 77, 0.05);
+  background: var(--warn-wash);
   font-size: 12.5px;
   color: var(--ink-dim);
   margin-top: 4px;
@@ -593,7 +716,7 @@ label,
   border: 1px solid var(--line);
   border-radius: var(--r-5);
   padding: 16px;
-  background: linear-gradient(135deg, rgba(46, 230, 168, 0.07), transparent 55%);
+  background: linear-gradient(135deg, var(--accent-wash-2), transparent 55%);
   margin-bottom: 16px;
 }
 .diag-hero .kicker {
@@ -689,8 +812,8 @@ label,
 .reasoning {
   margin-top: 14px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 182, 77, 0.22);
-  background: rgba(255, 182, 77, 0.05);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-wash);
   border-radius: var(--r-4);
   font-size: 13px;
   color: var(--ink-dim);
@@ -776,7 +899,7 @@ label,
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--r-5);
-  background: linear-gradient(135deg, rgba(46, 230, 168, 0.08), transparent 60%);
+  background: linear-gradient(135deg, var(--accent-wash-3), transparent 60%);
   margin-top: 12px;
 }
 .q-hero .score {
@@ -826,7 +949,7 @@ label,
 .scene-chip.selected {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(46, 230, 168, 0.08);
+  background: var(--accent-wash-3);
 }
 .canvas-frame {
   border: 1px solid var(--line);
@@ -982,7 +1105,7 @@ label,
   padding: 12px;
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
-  background: rgba(46, 230, 168, 0.04);
+  background: var(--accent-wash-1);
 }
 .feedback .flabel {
   font-family: var(--mono);
@@ -1094,6 +1217,45 @@ label,
 .diag-section {
   margin-top: 20px;
 }
+.diag-collapse {
+  margin-top: 4px;
+}
+.diag-collapse .diag-section:first-of-type {
+  margin-top: 14px;
+}
+.diag-collapse-summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 8px 0;
+  user-select: none;
+}
+.diag-collapse-summary::-webkit-details-marker {
+  display: none;
+}
+.diag-collapse-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  font-family: var(--mono);
+  color: var(--ink-faint);
+  transition: transform 0.15s ease;
+}
+.diag-collapse[open] > .diag-collapse-summary {
+  color: var(--ink);
+}
+.diag-collapse[open] > .diag-collapse-summary::before {
+  transform: rotate(90deg);
+}
+.diag-collapse-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-2);
+}
 .section-divider {
   border-top: 1px solid var(--line);
   margin: 20px 0;
@@ -1134,7 +1296,7 @@ label,
 }
 
 .similar-cases {
-  background: rgba(46, 230, 168, 0.06);
+  background: var(--accent-wash-2);
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   padding: 10px 14px;
@@ -1151,6 +1313,22 @@ label,
   font-size: 13px;
   color: var(--ink);
   line-height: 1.5;
+}
+.sc-bars {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.sc-bar-row {
+  grid-template-columns: 140px 1fr 70px;
+  padding: 5px 0;
+}
+.sc-bar-row .bar-track {
+  height: 6px;
+}
+.sc-bar-row .pct {
+  font-size: 11px;
+  color: var(--ink-dim);
 }
 
 /* Radial historical-case graph (inline SVG) */
@@ -1309,7 +1487,7 @@ label,
 .chat-input:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(46, 230, 168, 0.35);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 .chat-input::placeholder {
   color: var(--ink-faint);
@@ -1409,7 +1587,7 @@ label,
   padding: 10px 12px;
   cursor: pointer;
 }
-.case-head:hover { background: rgba(255, 255, 255, 0.02); }
+.case-head:hover { background: var(--hover-tint); }
 .case-id {
   font-family: var(--mono);
   font-size: 11px;
@@ -1607,7 +1785,7 @@ label,
   cursor: pointer;
 }
 .report-radio input { accent-color: var(--accent); }
-.report-radio input:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(46, 230, 168, 0.35); border-radius: 50%; }
+.report-radio input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); border-radius: 50%; }
 .report-radio-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .report-radio-row select {
   flex: 1;
@@ -1668,7 +1846,7 @@ label,
 }
 .seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
 .seg .seg-btn.active { background: var(--bg-3); color: var(--ink); }
-.seg .seg-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(46, 230, 168, 0.35); }
+.seg .seg-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-ring); }
 .ro-list {
   display: flex;
   flex-direction: column;
@@ -1680,3 +1858,49 @@ label,
 }
 .ro-item { font-size: 12.5px; color: var(--ink); }
 .ro-empty { font-size: 12.5px; color: var(--ink-faint); }
+
+/* ---------- Report drawer (Workbench slide-out, not a top-level tab) ---------- */
+.report-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 9, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 90;
+}
+.report-drawer-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.report-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 92vw);
+  background: var(--bg-1);
+  border-left: 1px solid var(--line);
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 91;
+  overflow-y: auto;
+}
+.report-drawer.open {
+  transform: translateX(0);
+}
+.report-drawer-host {
+  min-height: 100%;
+}
+.report-drawer .layout {
+  max-width: none;
+  width: 100%;
+  padding: 16px;
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-drawer,
+  .report-drawer-scrim {
+    transition: none;
+  }
+}

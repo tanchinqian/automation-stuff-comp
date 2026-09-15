@@ -1,7 +1,7 @@
 import { appState } from './state';
 import { clear, el, panel, button } from './dom';
 import { buildReportPdf, type ReportData } from '../report/pdfReport';
-import { switchTab } from './troubleshoot';
+import { closeReportDrawer } from './reportDrawer';
 import { loadAllCases, caseToReportData } from './database';
 import { getSimilarCases } from '../api/pipeline';
 import type { ScoredCause } from '../engine/scorer';
@@ -111,8 +111,7 @@ export function renderReportTab(host: HTMLElement): void {
   const row = el('div', 'freetext-row');
   const fillBtn = button('Fill sample', 'btn ghost', fillSampleReport);
   const downloadBtn = button('Download Report', 'btn primary');
-  const backBtn = button('Back to diagnosis', 'btn ghost', () => switchTab('troubleshoot'));
-  row.appendChild(fillBtn);
+  const backBtn = button('Close', 'btn ghost', () => closeReportDrawer());
   row.appendChild(downloadBtn);
   row.appendChild(backBtn);
   body.appendChild(row);
@@ -509,25 +508,4 @@ export function renderReportTab(host: HTMLElement): void {
     buildForm();
     updateSimilar();
   }).catch(() => { /* keep current-session mode */ });
-
-  // Reload the case list when this tab becomes visible (server may have been
-  // starting when the page first loaded).
-  const pane = host;
-  const paneState = pane as unknown as { __reportPaneObserver?: MutationObserver };
-  paneState.__reportPaneObserver?.disconnect();
-  let wasHidden = pane.classList.contains('hidden');
-  const observer = new MutationObserver(() => {
-    const hidden = pane.classList.contains('hidden');
-    if (wasHidden && !hidden) {
-      loadAllCases().then((cases) => {
-        allCases = cases;
-        if (!useCurrent && !selectedCase && allCases.length) selectedCase = allCases[0];
-        renderSourceBox();
-        updateSimilar();
-      }).catch(() => { /* ignore */ });
-    }
-    wasHidden = hidden;
-  });
-  observer.observe(pane, { attributes: true, attributeFilter: ['class'] });
-  paneState.__reportPaneObserver = observer;
 }

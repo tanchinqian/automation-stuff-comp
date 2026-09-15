@@ -1,13 +1,16 @@
 import './style.css';
 import { el } from './ui/dom';
+import { initTheme, createThemeToggle } from './ui/theme';
 import { renderTroubleshoot, switchTab } from './ui/troubleshoot';
 import { renderDatabase } from './ui/database';
 import { renderReportTab } from './ui/report';
+import { getReportDrawerHost, setReportDrawerOnOpen } from './ui/reportDrawer';
+
+initTheme();
 
 const TABS = [
   { id: 'troubleshoot', label: '01 WORKBENCH' },
-  { id: 'report', label: '02 REPORT' },
-  { id: 'database', label: '03 LEARNING DB' },
+  { id: 'database', label: '02 LEARNING DB' },
 ];
 
 const app = document.getElementById('app')!;
@@ -43,10 +46,7 @@ for (const t of TABS) {
 topbar.appendChild(nav);
 
 topbar.appendChild(el('div', 'spacer'));
-
-
-
-
+topbar.appendChild(createThemeToggle());
 
 app.appendChild(topbar);
 
@@ -65,7 +65,11 @@ app.appendChild(panes);
 // Render each tab
 renderTroubleshoot(document.getElementById('tab-troubleshoot')!);
 renderDatabase(document.getElementById('tab-database')!);
-renderReportTab(document.getElementById('tab-report')!);
+
+// Report is a slide-out drawer, not a top-level tab: pre-render it now (so
+// it's ready the instant it's opened) and refresh it on every subsequent open.
+setReportDrawerOnOpen(() => renderReportTab(getReportDrawerHost()));
+renderReportTab(getReportDrawerHost());
 
 // Footer
 const footer = el('div', 'footer');
