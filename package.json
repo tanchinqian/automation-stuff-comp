@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "PasteTrace - an offline, on-device troubleshooting console for fluid-dispensing defects.",
+  "description": "PasteTrace - an integrated troubleshooting console that turns a board inspection image into an explainable root-cause diagnosis, a step-by-step fix plan, and an exportable 8D report, learning from every case it closes.",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
