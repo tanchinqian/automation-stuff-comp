@@ -8,6 +8,7 @@ PasteTrace is an integrated troubleshooting console that turns a board inspectio
 npm install
 npm run dev                 # web app: http://localhost:5173
 
+python -m pip install -r requirements.txt   # Python deps for the local API
 python server/start.py      # local API: http://localhost:8000 (optional)
 ```
 
@@ -23,7 +24,7 @@ The local API loads three bundled model files (committed to the repo, so a fresh
 | Stage-2 crop classifier (MobileNetV2, ONNX) | `models/leg_classifier.onnx` |
 | Classifier labels | `models/leg_classifier_labels.json` |
 
-`python server/start.py` also needs `ultralytics`, `torch`, `onnxruntime`, and `Pillow` installed; it only auto-installs the API-layer packages.
+Install the runtime with `python -m pip install -r requirements.txt`. `python server/start.py` only auto-installs the API-layer packages (`fastapi`, `uvicorn`, `python-multipart`, `google-genai`, `python-dotenv`); the vision stack (`ultralytics`, `torch`, `onnxruntime`, `Pillow`, `numpy`) comes from `requirements.txt`.
 
 ## Commands
 
