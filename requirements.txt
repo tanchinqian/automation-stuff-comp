@@ -1,0 +1,17 @@
+# Python dependencies for the local pipeline API (server/) and vision models.
+# Frontend dependencies live in package.json (npm); this file is Python-only.
+#
+# Install:  python -m pip install -r requirements.txt
+
+# API layer (server/start.py also auto-installs these if they are missing)
+fastapi==0.116.1
+uvicorn==0.35.0
+python-multipart==0.0.32
+google-genai==2.23.0
+python-dotenv==1.2.3
+
+# Vision pipeline (scripts/pipeline.py). ultralytics pulls in torch + torchvision.
+ultralytics==8.4.145
+onnxruntime==1.29.0
+pillow==12.2.0
+numpy==2.4.4

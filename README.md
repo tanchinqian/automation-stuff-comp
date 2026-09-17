@@ -8,10 +8,23 @@ PasteTrace is an integrated troubleshooting console that turns a board inspectio
 npm install
 npm run dev                 # web app: http://localhost:5173
 
+python -m pip install -r requirements.txt   # Python deps for the local API
 python server/start.py      # local API: http://localhost:8000 (optional)
 ```
 
 Open http://localhost:5173. Without the server, vision falls back on-device and the chat falls back to offline replies. For the AI chat, copy `.env.example` to `.env` and add a Gemini API key.
+
+### Server models
+
+The local API loads three bundled model files (committed to the repo, so a fresh clone has them):
+
+| Model | Path |
+| --- | --- |
+| Stage-1 leg detector (YOLOv8n) | `models/leg_detector.pt` |
+| Stage-2 crop classifier (MobileNetV2, ONNX) | `models/leg_classifier.onnx` |
+| Classifier labels | `models/leg_classifier_labels.json` |
+
+Install the runtime with `python -m pip install -r requirements.txt`. `python server/start.py` only auto-installs the API-layer packages (`fastapi`, `uvicorn`, `python-multipart`, `google-genai`, `python-dotenv`); the vision stack (`ultralytics`, `torch`, `onnxruntime`, `Pillow`, `numpy`) comes from `requirements.txt`.
 
 ## Commands
 
