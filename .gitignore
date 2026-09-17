@@ -14,7 +14,7 @@ Thumbs.db
 /test_data/
 /train_data_augmentation/
 
-# YOLO training artifacts (only public/models ships)
+# YOLO training artifacts (the exported detector ships in models/leg_detector.pt)
 /runs/
 /weights/
 yolov8s.pt
@@ -29,11 +29,9 @@ yolov8s.pt
 # Generated blob-based leg dataset (rebuilt by generate_leg_labels_blobs.py)
 /dataset_leg_detection_v2/
 
-# Stage 2 classifier artifacts (rebuilt by scripts/train_classifier.py)
+# Stage 2 classifier training checkpoints (the exported ONNX + labels ship in models/)
 /checkpoints/
 /results/
-/models/leg_classifier.onnx
-/models/leg_classifier_labels.json
 
 # Local pipeline API server runtime data (case log + temp uploads)
 /server/_uploads/

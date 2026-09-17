@@ -36,7 +36,7 @@ except ImportError:                                    # run directly
 # ---------------------------------------------------------------------------
 CONFIG_PATH = ROOT / "pipeline_config.json"
 DEFAULTS = {
-    "yolo_model": "runs/detect/leg_detector_v2-2/weights/best.pt",
+    "yolo_model": "models/leg_detector.pt",
     "classifier_model": "models/leg_classifier.onnx",
     "classifier_labels": "models/leg_classifier_labels.json",
     "crop_padding": 8,

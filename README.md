@@ -13,6 +13,18 @@ python server/start.py      # local API: http://localhost:8000 (optional)
 
 Open http://localhost:5173. Without the server, vision falls back on-device and the chat falls back to offline replies. For the AI chat, copy `.env.example` to `.env` and add a Gemini API key.
 
+### Server models
+
+The local API loads three bundled model files (committed to the repo, so a fresh clone has them):
+
+| Model | Path |
+| --- | --- |
+| Stage-1 leg detector (YOLOv8n) | `models/leg_detector.pt` |
+| Stage-2 crop classifier (MobileNetV2, ONNX) | `models/leg_classifier.onnx` |
+| Classifier labels | `models/leg_classifier_labels.json` |
+
+`python server/start.py` also needs `ultralytics`, `torch`, `onnxruntime`, and `Pillow` installed; it only auto-installs the API-layer packages.
+
 ## Commands
 
 | Command | What it does |
