@@ -2,13 +2,18 @@
 
 PasteTrace is an integrated troubleshooting console that turns a board inspection image into an explainable root-cause diagnosis, a step-by-step fix plan, and an exportable 8D report, learning from every case it closes.
 
-## Run
+## Setup
+
+Requires Node 22+ and Python 3.11+ (the vision stack is tested on 3.13).
 
 ```bash
-npm install
-npm run dev                 # web app: http://localhost:5173
+git clone https://github.com/tanchinqian/automation-stuff-comp.git
+cd automation-stuff-comp
 
-python -m pip install -r requirements.txt   # Python deps for the local API
+npm install                                 # frontend deps
+python -m pip install -r requirements.txt   # local API deps
+
+npm run dev                 # web app: http://localhost:5173
 python server/start.py      # local API: http://localhost:8000 (optional)
 ```
 
@@ -16,7 +21,7 @@ Open http://localhost:5173. Without the server, vision falls back on-device and 
 
 ### Server models
 
-The local API loads three bundled model files (committed to the repo, so a fresh clone has them):
+The local API loads three bundled model files. They are committed to the repo, so a fresh clone already has them:
 
 | Model | Path |
 | --- | --- |
@@ -24,7 +29,24 @@ The local API loads three bundled model files (committed to the repo, so a fresh
 | Stage-2 crop classifier (MobileNetV2, ONNX) | `models/leg_classifier.onnx` |
 | Classifier labels | `models/leg_classifier_labels.json` |
 
-Install the runtime with `python -m pip install -r requirements.txt`. `python server/start.py` only auto-installs the API-layer packages (`fastapi`, `uvicorn`, `python-multipart`, `google-genai`, `python-dotenv`); the vision stack (`ultralytics`, `torch`, `onnxruntime`, `Pillow`, `numpy`) comes from `requirements.txt`.
+`python server/start.py` only auto-installs the API layer (`fastapi`, `uvicorn`, `python-multipart`, `google-genai`, `python-dotenv`). The vision stack (`ultralytics`, `torch`, `onnxruntime`, `Pillow`, `numpy`) comes from `requirements.txt`.
+
+### Updating an existing clone
+
+```bash
+git pull
+python -m pip install -r requirements.txt
+```
+
+Restart the API after pulling: models load once at startup.
+
+### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `FileNotFoundError: .../leg_detector.pt` or `.../leg_classifier.onnx` on startup | The model files are missing. Run `git pull` and confirm the three files above exist under `models/`. |
+| `ModuleNotFoundError: ultralytics` (or `onnxruntime`, `PIL`) | Run `python -m pip install -r requirements.txt`. |
+| API starts but chat replies "having trouble connecting" | Set `GEMINI_API_KEY` in `.env` (copy `.env.example`). |
 
 ## Commands
 
