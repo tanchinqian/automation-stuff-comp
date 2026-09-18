@@ -189,11 +189,11 @@ Same roles, inverted surfaces, status hues darkened for legibility on light back
 - **Display / Score** (700, mono, 40px): the big quality-score readout.
 - **Hero Title** (600, sans, 24px): the identified-defect heading.
 - **Headline** (600, 17px): panel/dialog titles.
-- **Title** (600, 15px): question text and hero headings.
-- **Body** (400, 14px, line-height 1.5): descriptions, reasoning, action detail. ~65ch max.
-- **Small Body** (400, 13px / 13.5px): chat bubbles, bar names, reasoning text.
-- **Label** (mono, 11px, uppercase, tracking 0.08em): section labels, chip text, status chips.
-- **Micro Label** (mono, 10px / 10.5px): category tags, footnote labels.
+- **Title** (600, 16px): question text and hero headings.
+- **Body** (400, 15px, line-height 1.5): descriptions, reasoning, action detail. ~65ch max.
+- **Small Body** (400, 13.5px / 14px): chat bubbles, bar names, reasoning text.
+- **Label** (mono, 12px, uppercase, tracking 0.08em): section labels, chip text, status chips.
+- **Micro Label** (mono, 11px / 11.5px): category tags, footnote labels.
 - **Numerals** (mono, tabular-nums): every number display uses tabular figures so columns align.
 
 Type ramp used across the system (px): 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 15, 16, 17, 19, 21, 24, 34, 40.
@@ -207,9 +207,9 @@ Type ramp used across the system (px): 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 1
 
 - Two top-level tabs: `01 WORKBENCH`, `02 LEARNING DB`.
 - Workbench has a sticky sub-tab strip directly under the sticky topbar: `Inspect & Diagnose` | `Report`. Panes are shown/hidden only, so state survives switching.
-- `Inspect & Diagnose` is a single full-width column (max `1440px`) stacking Image Inspection and Diagnosis.
+- `Inspect & Diagnose` is a single full-width column (max `1680px`) stacking Image Inspection and Diagnosis with decreased empty lateral margins.
 - The Assistant is an overlay drawer (fixed right, `min(420px, 100vw)`) with a dimming backdrop; it never occupies layout space. Open via the topbar toggle, close via backdrop, Escape, toggle, or its close button.
-- Report and Learning DB use the standard `1380px` centered layout with `20px 24px` page padding.
+- Report and Learning DB use the standard `1680px` centered layout with `16px 20px` page padding.
 - Everything collapses to one column below `980px`; the drawer goes full width below `640px`.
 - Gap rhythm: `8 / 16 / 18 / 20px`; panel body padding `16px`.
 
