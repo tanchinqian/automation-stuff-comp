@@ -73,8 +73,8 @@ const applyMode = (mode: 'dark' | 'light'): void => {
   document.documentElement.dataset.mode = mode;
   try { localStorage.setItem(MODE_KEY, mode); } catch { /* storage unavailable */ }
   document.querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', mode === 'light' ? '#f6f8fa' : '#0d1016');
-  modeBtn.textContent = mode === 'light' ? 'Dark mode' : 'Light mode';
+    ?.setAttribute('content', mode === 'light' ? '#f6f8fa' : '#111620');
+  modeBtn.textContent = mode === 'light' ? '🌙 Dark mode' : '☀️ Light mode';
   const label = mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
   modeBtn.title = label;
   modeBtn.setAttribute('aria-label', label);

@@ -2,23 +2,23 @@
 name: PasteTrace
 description: An offline, on-device troubleshooting console for fluid-dispensing defects.
 colors:
-  # Dark mode (default)
-  steel-blue: "#4a7a9e"
-  steel-blue-dim: "#3c6480"
-  on-brand: "#0a0f14"
+  # Dark mode (default - high contrast precision console)
+  steel-blue: "#4da6e0"
+  steel-blue-dim: "#3889bc"
+  on-brand: "#ffffff"
   status-good: "#5a9e6f"
   status-warn: "#ffb64d"
   status-fail: "#ff5f6d"
   chat-user-blue: "#5aa9ff"
-  console-ink: "#d7dde6"
-  console-ink-dim: "#8a93a6"
-  console-ink-faint: "#5a6272"
-  surface-0: "#07090d"
-  surface-1: "#0d1016"
-  surface-2: "#12161f"
-  surface-3: "#1a1f2b"
-  hairline: "#232a38"
-  hairline-soft: "#1a202b"
+  console-ink: "#f1f5f9"
+  console-ink-dim: "#9db0c6"
+  console-ink-faint: "#718296"
+  surface-0: "#0a0e14"
+  surface-1: "#111620"
+  surface-2: "#18202c"
+  surface-3: "#222c3d"
+  hairline: "#2d3a4e"
+  hairline-soft: "#1e2736"
   data-viz-1: "#35586f"
   data-viz-2: "#4a7a9e"
   data-viz-3: "#6f9fc0"
@@ -155,11 +155,11 @@ Color is roles first. A hue earns its place by doing one job:
 - Neutrals (`--bg-0..3`, `--line`, `--line-soft`, `--ink`, `--ink-dim`, `--ink-faint`): surfaces, borders, text.
 - `--chat-user`: the user's chat bubble/avatar only.
 
-### Dark mode (default)
-- **Steel Blue** (#4a7a9e) - brand/interactive; dim #3c6480; tint rgba(74,122,158,0.12); `--on-brand` #0a0f14.
+### Dark mode (default - high contrast)
+- **Steel Blue** (#4da6e0) - brand/interactive; dim #3889bc; tint rgba(77,166,224,0.14); `--on-brand` #ffffff.
 - **Status** good #5a9e6f, warn #ffb64d, fail #ff5f6d.
-- **Ink** #d7dde6 / #8a93a6 / #5a6272.
-- **Surfaces** #07090d / #0d1016 / #12161f / #1a1f2b; hairlines #232a38 / #1a202b.
+- **Ink** #f1f5f9 / #9db0c6 / #718296.
+- **Surfaces** #0a0e14 / #111620 / #18202c / #222c3d; hairlines #2d3a4e / #1e2736.
 - **Data-viz** #35586f, #4a7a9e, #6f9fc0, #9dc0d8 (deep to bright).
 - **Chat user** #5aa9ff.
 

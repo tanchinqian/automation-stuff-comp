@@ -40,22 +40,22 @@
   --scrim: rgba(4, 6, 9, 0.72);
   --scrim-soft: rgba(4, 6, 9, 0.6);
 
-  --bg-0: #07090d;
-  --bg-1: #0d1016;
-  --bg-2: #12161f;
-  --bg-3: #1a1f2b;
-  --line: #232a38;
-  --line-soft: #1a202b;
-  --ink: #d7dde6;
-  --ink-dim: #8a93a6;
-  --ink-faint: #5a6272;
+  --bg-0: #0a0e14;
+  --bg-1: #111620;
+  --bg-2: #18202c;
+  --bg-3: #222c3d;
+  --line: #2d3a4e;
+  --line-soft: #1e2736;
+  --ink: #f1f5f9;
+  --ink-dim: #9db0c6;
+  --ink-faint: #718296;
 
-  --brand: #4a7a9e;
-  --brand-dim: #3c6480;
-  --brand-tint: rgba(74, 122, 158, 0.12);
-  --brand-glow: rgba(74, 122, 158, 0.35);
-  --brand-select: rgba(74, 122, 158, 0.3);
-  --on-brand: #0a0f14;
+  --brand: #4da6e0;
+  --brand-dim: #3889bc;
+  --brand-tint: rgba(77, 166, 224, 0.14);
+  --brand-glow: rgba(77, 166, 224, 0.35);
+  --brand-select: rgba(77, 166, 224, 0.3);
+  --on-brand: #ffffff;
 
   --data-viz-1: #35586f;
   --data-viz-2: #4a7a9e;
