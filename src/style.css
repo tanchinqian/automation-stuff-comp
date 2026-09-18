@@ -1003,6 +1003,132 @@ label,
   margin-top: 2px;
 }
 
+/* ---------- Vision Filter Bar ---------- */
+.vision-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 10px 0 6px;
+}
+.vision-filter-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.vision-filter-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.vision-filter-chip:hover {
+  border-color: var(--brand-dim);
+  color: var(--ink);
+  background: var(--bg-3);
+}
+.vision-filter-chip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.vision-filter-chip.selected {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-tint);
+  font-weight: 600;
+}
+
+/* ---------- Pad Inspector Card ---------- */
+.pad-inspector-card {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.pad-inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+.pad-inspector-head .title-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pad-inspector-body {
+  display: flex;
+  gap: 14px;
+  padding: 10px 12px;
+  align-items: center;
+}
+.pad-crop-frame {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--bg-0);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.pad-crop-frame canvas {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--r-2);
+  image-rendering: pixelated;
+}
+.pad-telemetry-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 12px;
+}
+.pad-stat-item {
+  display: flex;
+  flex-direction: column;
+}
+.pad-stat-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pad-stat-value {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+.pad-inspector-standby {
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* live */
 .live-toolbar {
   display: flex;
