@@ -684,13 +684,19 @@ label,
 /* bars */
 .bar-row {
   display: grid;
-  grid-template-columns: 130px 1fr 46px;
+  grid-template-columns: 140px 1fr 44px auto;
   align-items: center;
   gap: 10px;
   padding: 7px 0;
 }
 .bar-row + .bar-row {
   border-top: 1px solid var(--line-soft);
+}
+.cause-item + .cause-item {
+  border-top: 1px solid var(--line-soft);
+}
+.cause-item .bar-row + .bar-row {
+  border-top: none;
 }
 .bar-row .name {
   font-family: var(--mono);
@@ -739,6 +745,81 @@ label,
   font-size: 12px;
   color: var(--ink);
   text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cause-explain-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.cause-explain-btn:hover {
+  border-color: var(--brand-dim);
+  color: var(--ink);
+  background: var(--bg-3);
+}
+.cause-explain-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.cause-explain-btn.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-tint);
+  font-weight: 700;
+}
+.cause-explain-box {
+  margin: 2px 0 10px;
+  padding: 10px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-3);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.cause-explain-desc {
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.4;
+}
+.cause-evidence-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+.cause-evidence-item {
+  line-height: 1.4;
+}
+.cause-scoring-summary {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.cause-scoring-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cause-scoring-pill b {
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Collapsible diagnosis sections ---------- */

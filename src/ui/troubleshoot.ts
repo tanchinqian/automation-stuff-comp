@@ -923,6 +923,7 @@ export function renderDiagnosis(
   const causesSection = el('div', 'causes-block');
   causesSection.appendChild(el('div', 'question-label', 'Possible causes'));
   causeRows.forEach((c, i) => {
+    const item = el('div', 'cause-item');
     const row = el('div', 'bar-row');
     const nameCell = el('div', 'name');
     nameCell.appendChild(el('b', '', c.name));
@@ -932,6 +933,7 @@ export function renderDiagnosis(
       nameCell.appendChild(el('div', 'low-conf-note', 'Weak evidence'));
     }
     row.appendChild(nameCell);
+
     const track = el('div', 'bar-track');
     const fill = el('div', 'bar-fill');
     fill.style.width = `${Math.max(4, c.score * 100)}%`;
@@ -939,8 +941,51 @@ export function renderDiagnosis(
     if (c.score >= 0.9) fill.classList.add('red');
     track.appendChild(fill);
     row.appendChild(track);
+
     row.appendChild(el('div', 'pct', `${(c.score * 100).toFixed(0)}%`));
-    causesSection.appendChild(row);
+
+    const explainBtn = el('button', 'cause-explain-btn', 'Why?') as HTMLButtonElement;
+    explainBtn.type = 'button';
+    explainBtn.title = `Explain evidence and scoring breakdown for ${c.name}`;
+    row.appendChild(explainBtn);
+    item.appendChild(row);
+
+    // Expandable Explainability Card
+    const explainBox = el('div', 'cause-explain-box');
+    explainBox.style.display = 'none';
+
+    if (c.description) {
+      explainBox.appendChild(el('div', 'cause-explain-desc', c.description));
+    }
+
+    const evList = el('ul', 'cause-evidence-list');
+    for (const r of c.reasons) {
+      const li = el('li', 'cause-evidence-item', r);
+      evList.appendChild(li);
+    }
+    explainBox.appendChild(evList);
+
+    const scoringSummary = el('div', 'cause-scoring-summary');
+    const addPill = (label: string, val: string) => {
+      const p = el('span', 'cause-scoring-pill');
+      p.appendChild(document.createTextNode(`${label}: `));
+      p.appendChild(el('b', '', val));
+      scoringSummary.appendChild(p);
+    };
+    addPill('Probability', `${(c.score * 100).toFixed(1)}%`);
+    addPill('Domain', c.category);
+    addPill('Ranking', `#${i + 1} of ${causeRows.length}`);
+    explainBox.appendChild(scoringSummary);
+
+    item.appendChild(explainBox);
+
+    explainBtn.onclick = () => {
+      const isOpen = explainBox.style.display !== 'none';
+      explainBox.style.display = isOpen ? 'none' : 'block';
+      explainBtn.classList.toggle('active', !isOpen);
+    };
+
+    causesSection.appendChild(item);
   });
   ranking.inner.appendChild(causesSection);
   body.appendChild(ranking.root);
