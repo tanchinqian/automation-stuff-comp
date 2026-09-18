@@ -1,4 +1,4 @@
-﻿/* ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
    Design tokens.
 
    Color ROLES are separated so no single hue does every job:
@@ -119,9 +119,7 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(1100px 500px at 70% -10%, var(--brand-tint), transparent 60%),
-    var(--bg-0);
+  background: var(--bg-0);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -254,18 +252,11 @@ label,
   font-size: 15px;
   color: var(--ink);
 }
-.brand .mark {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--brand);
-  border-radius: 2px;
-  position: relative;
-}
-.brand .mark::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  background: var(--brand);
+/* SVG PCB-target brand mark: sized by the SVG's own width/height attrs. */
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+  color: var(--brand);
 }
 .topbar .spacer {
   flex: 1;
@@ -372,11 +363,14 @@ label,
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
 }
-/* Flat status marker before a panel title (replaces the old diamond glyph). */
+/* Flat status marker before a panel title: 3x14px vertical blade, instrument-style. */
 .panel-head .panel-mark {
-  width: 6px;
-  height: 6px;
+  width: 3px;
+  height: 14px;
+  border-radius: var(--r-2);
   background: var(--brand);
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 .panel-head .title {
   font-family: var(--sans);
@@ -400,7 +394,7 @@ label,
   background: var(--bg-3);
   color: var(--ink);
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
   white-space: nowrap;
 }
 .btn:hover {
@@ -573,11 +567,15 @@ label,
   font-size: 13.5px;
   max-width: 640px;
 }
+/* AI bubble: steel-blue tint bg + hairline brand border to distinguish from neutral. */
 .msg.ai .bubble {
   background: var(--brand-tint);
+  border-color: var(--brand-dim);
 }
+/* User bubble: chat-user tint bg + hairline tinted border. */
 .msg.user .bubble {
   background: var(--chat-user-tint);
+  border-color: rgba(90, 169, 255, 0.22);
 }
 
 /* ---------- Evidence strip ---------- */
@@ -678,8 +676,9 @@ label,
 .confidence-value {
   font-family: var(--mono);
   font-weight: 700;
-  color: var(--data-viz-1);
+  color: var(--data-viz-3);
   font-size: 16px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* bars */
@@ -775,7 +774,7 @@ label,
 .acc-caret {
   flex: 0 0 auto;
   color: var(--ink-dim);
-  transition: transform 0.2s ease;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .acc[data-open='true'] .acc-caret {
   transform: rotate(90deg);
@@ -901,7 +900,9 @@ label,
   font-family: var(--mono);
   font-size: 34px;
   font-weight: 700;
-  color: var(--data-viz-1);
+  /* Brightest data-viz step: 34px readout should feel like a lit instrument gauge. */
+  color: var(--data-viz-4);
+  font-variant-numeric: tabular-nums;
 }
 .q-hero .score-label {
   font-family: var(--mono);
@@ -1165,12 +1166,11 @@ label,
   font-family: var(--mono);
   font-size: 12px;
   color: var(--brand);
-  animation: pulse 1.2s ease infinite;
+  animation: pulse 1.4s ease-in-out infinite;
 }
 @keyframes pulse {
-  50% {
-    opacity: 0.35;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .empty-state {
@@ -1182,8 +1182,9 @@ label,
   border-radius: var(--r-4);
 }
 .empty-state .big {
-  font-size: 34px;
-  margin-bottom: 8px;
+  /* Icon container: the SVG carries its own width/height. */
+  margin-bottom: 14px;
+  opacity: 0.55;
 }
 
 /* dots render overlay */
@@ -1971,12 +1972,13 @@ label,
   color: var(--ink-dim);
   cursor: pointer;
   box-shadow: inset 0 -2px 0 transparent;
+  transition: color 0.12s ease, box-shadow 0.12s ease;
 }
 .subtab:hover {
   color: var(--ink);
 }
 .subtab.active {
-  color: var(--ink);
+  color: var(--brand);
   box-shadow: inset 0 -2px 0 var(--brand);
 }
 .subtab:focus-visible {
@@ -2023,7 +2025,8 @@ label,
   width: min(420px, 100vw);
   display: flex;
   transform: translateX(100%);
-  transition: transform 0.24s ease;
+  /* Exponential ease-out: snappy open, gentle settle - matches bar-grow easing. */
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
   background: var(--bg-1);
 }
 .chat-drawer.open {

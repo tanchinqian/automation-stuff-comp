@@ -22,7 +22,26 @@ app.appendChild(h1);
 // Top bar
 const topbar = el('div', 'topbar');
 const brand = el('div', 'brand');
-brand.appendChild(el('span', 'mark'));
+
+// PCB inspection-target brand mark: outer registration square, corner bracket
+// arms, and a center dot. All drawn in currentColor so it follows the brand
+// token in both dark and light mode without extra CSS overrides.
+const brandMark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+brandMark.setAttribute('width', '18');
+brandMark.setAttribute('height', '18');
+brandMark.setAttribute('viewBox', '0 0 18 18');
+brandMark.setAttribute('fill', 'none');
+brandMark.setAttribute('aria-hidden', 'true');
+brandMark.setAttribute('class', 'brand-mark');
+brandMark.innerHTML = [
+  '<rect x="0.5" y="0.5" width="17" height="17" rx="2" stroke="currentColor" stroke-width="1" opacity="0.45"/>',
+  '<path d="M3 7.5 L3 3 L7.5 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  '<path d="M10.5 3 L15 3 L15 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  '<path d="M3 10.5 L3 15 L7.5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  '<path d="M10.5 15 L15 15 L15 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  '<circle cx="9" cy="9" r="2" fill="currentColor"/>',
+].join('');
+brand.appendChild(brandMark);
 brand.appendChild(el('span', '', 'PasteTrace'));
 topbar.appendChild(brand);
 
