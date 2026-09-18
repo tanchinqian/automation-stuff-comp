@@ -997,17 +997,142 @@ export function renderDiagnosis(
 
   body.appendChild(el('div', 'section-divider'));
 
-  // ---- Action plan ----
+  // ---- Action plan (Interactive Verification Checklist) ----
+  let selectCauseFn: ((causeId: string) => void) | null = null;
+  const stepStatus = new Map<number, 'pending' | 'ok' | 'found'>();
+
   const actionSection = el('div', 'diag-section');
-  actionSection.appendChild(el('div', 'question-label', 'Recommended troubleshooting sequence'));
+  const actionHeadRow = el('div', 'action-header-row');
+  actionHeadRow.appendChild(el('div', 'question-label', 'Recommended troubleshooting sequence'));
+
+  const progressRight = el('div', '', '');
+  progressRight.style.display = 'flex';
+  progressRight.style.alignItems = 'center';
+  progressRight.style.gap = '8px';
+
+  const progressBadge = el('span', 'action-progress-badge', `VERIFIED: 0 / ${actions.length}`);
+  progressRight.appendChild(progressBadge);
+
+  const resetChecklistBtn = el('button', 'btn sm ghost', 'Reset') as HTMLButtonElement;
+  resetChecklistBtn.type = 'button';
+  resetChecklistBtn.title = 'Reset all checklist verification steps';
+  progressRight.appendChild(resetChecklistBtn);
+  actionHeadRow.appendChild(progressRight);
+  actionSection.appendChild(actionHeadRow);
+
   const actionList = el('div', 'action-list');
+  const stepElements = new Map<number, {
+    stepEl: HTMLElement;
+    numEl: HTMLElement;
+    okBtn: HTMLButtonElement;
+    foundBtn: HTMLButtonElement;
+  }>();
+
+  const updateProgress = () => {
+    let verifiedCount = 0;
+    stepStatus.forEach((st) => {
+      if (st === 'ok' || st === 'found') verifiedCount++;
+    });
+    progressBadge.textContent = `VERIFIED: ${verifiedCount} / ${actions.length}`;
+  };
+
+  resetChecklistBtn.onclick = () => {
+    actions.forEach((a) => {
+      stepStatus.set(a.order, 'pending');
+      const els = stepElements.get(a.order);
+      if (els) {
+        els.stepEl.classList.remove('status-ok', 'status-found');
+        els.numEl.textContent = `${a.order}`;
+        els.okBtn.classList.remove('active-ok');
+        els.foundBtn.classList.remove('active-found');
+      }
+    });
+    updateProgress();
+  };
+
   for (const a of actions) {
+    stepStatus.set(a.order, 'pending');
     const step = el('div', 'action-step');
-    step.appendChild(el('div', 'num', `${a.order}`));
-    const txt = el('div', '');
+    const numEl = el('div', 'num', `${a.order}`);
+    step.appendChild(numEl);
+
+    const txt = el('div', 'body');
     txt.appendChild(el('div', 'title', a.title));
     txt.appendChild(el('div', 'detail', a.detail));
     step.appendChild(txt);
+
+    const controls = el('div', 'action-step-controls');
+    const okBtn = el('button', 'action-status-btn', '✓ OK') as HTMLButtonElement;
+    okBtn.type = 'button';
+    okBtn.title = 'Mark step as verified OK';
+
+    const foundBtn = el('button', 'action-status-btn', '⚠ ROOT CAUSE') as HTMLButtonElement;
+    foundBtn.type = 'button';
+    foundBtn.title = 'Mark this step as the defect root cause and feed learning database';
+
+    okBtn.onclick = () => {
+      const current = stepStatus.get(a.order);
+      if (current === 'ok') {
+        stepStatus.set(a.order, 'pending');
+        step.classList.remove('status-ok');
+        okBtn.classList.remove('active-ok');
+        numEl.textContent = `${a.order}`;
+      } else {
+        stepStatus.set(a.order, 'ok');
+        step.classList.remove('status-found');
+        foundBtn.classList.remove('active-found');
+        step.classList.add('status-ok');
+        okBtn.classList.add('active-ok');
+        numEl.textContent = '✓';
+      }
+      updateProgress();
+    };
+
+    foundBtn.onclick = () => {
+      const current = stepStatus.get(a.order);
+      if (current === 'found') {
+        stepStatus.set(a.order, 'pending');
+        step.classList.remove('status-found');
+        foundBtn.classList.remove('active-found');
+        numEl.textContent = `${a.order}`;
+      } else {
+        // clear other steps marked as found
+        actions.forEach((other) => {
+          if (other.order !== a.order && stepStatus.get(other.order) === 'found') {
+            stepStatus.set(other.order, 'pending');
+            const otherEls = stepElements.get(other.order);
+            if (otherEls) {
+              otherEls.stepEl.classList.remove('status-found');
+              otherEls.foundBtn.classList.remove('active-found');
+              otherEls.numEl.textContent = `${other.order}`;
+            }
+          }
+        });
+        stepStatus.set(a.order, 'found');
+        step.classList.remove('status-ok');
+        okBtn.classList.remove('active-ok');
+        step.classList.add('status-found');
+        foundBtn.classList.add('active-found');
+        numEl.textContent = '⚠';
+
+        // Select the matching cause in feedback and prefill note
+        if (selectCauseFn && a.causeId) {
+          selectCauseFn(a.causeId);
+          if (!fixInput.value.trim()) {
+            fixInput.value = `Verified at step ${a.order}: ${a.title}`;
+            fixInput.dispatchEvent(new Event('input'));
+          }
+          fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+      updateProgress();
+    };
+
+    controls.appendChild(okBtn);
+    controls.appendChild(foundBtn);
+    step.appendChild(controls);
+
+    stepElements.set(a.order, { stepEl: step, numEl, okBtn, foundBtn });
     actionList.appendChild(step);
   }
   actionSection.appendChild(actionList);
@@ -1127,6 +1252,7 @@ export function renderDiagnosis(
     updateStatus();
     syncSaveBtn();
   };
+  selectCauseFn = selectCause;
   for (const c of causeOptions) {
     const b = button(`✓ ${c.name}`, 'btn sm ghost', () => selectCause(c.causeId));
     b.dataset.causeId = c.causeId;
