@@ -332,7 +332,7 @@ export function renderReportTab(host: HTMLElement): void {
         imageLabel: appState.lastImage?.label,
         imageUrl: appState.lastImage?.imageUrl,
         imageFormat: appState.lastImage?.imageUrl ? 'PNG' : undefined,
-        engineLabel: 'Gemini API (chat) + YOLOv8n + MobileNetV2 (vision)',
+        engineLabel: 'Gemini API (chat) + YOLOv8n + MobileNetV2',
         reportId: appState.reportId,
         containmentVerified: false,
         rootCauseVerified: false,

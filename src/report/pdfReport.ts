@@ -164,26 +164,25 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += gap;
   };
 
-  // Key : Value in two columns - value capped to box right edge
+  // Key : Value in two columns - value wraps across lines without clipping
   const kv = (key: string, value: string, indent = 0) => {
-    guard(14);
     const keyX  = ML + indent + 6;
     const valX  = ML + indent + 110;
     const maxW  = CW - indent - 116; // remaining width to right box edge
+    const valLines = doc.splitTextToSize(value, maxW);
+    const lineH = 11;
+    const totalH = Math.max(13, (valLines.length - 1) * lineH + 13);
+    guard(totalH + 2);
     doc.setFont(FONT, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
     doc.text(key.toUpperCase() + ':', keyX, y);
     doc.setFont(FONT, 'normal');
     doc.setTextColor(...C.dark);
-    // Split value if it would overflow the box
-    const valLines = doc.splitTextToSize(value, maxW);
-    doc.text(valLines[0], valX, y);
-    if (valLines.length > 1) {
-      y += 11;
-      doc.text(valLines[1], valX, y);
+    for (let i = 0; i < valLines.length; i++) {
+      doc.text(valLines[i], valX, y + i * lineH);
     }
-    y += 13;
+    y += totalH;
   };
 
   // ── Section box ──────────────────────────────────────────────────────────────
@@ -266,45 +265,51 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   // ────────────────────────────────────────────────────────────────────────────
   drawHeader();
 
-  // ── Metadata header row - clean 2-column table, no overlapping badge ──────
-  // Left column: keys at col1X, values at col1X + 110
-  // Right column: keys at col2X, values at col2X + 110
-  // Keep a gap of at least 20pt between the two columns' value areas.
-  const colGap   = CW / 2;          // left half / right half split
-  const col1X    = ML + 6;
-  const col2X    = ML + colGap + 10;
-  const colValOff = 110;             // key -> value offset (same for both cols)
-  const col1ValMaxW = colGap - colValOff - 20;
-  const col2ValMaxW = CW - colGap - colValOff - 10;
+  // ── Metadata header row - clean 2-column table with dynamic row-height wrapping ──
+  const colGap    = CW / 2;          // left half / right half split
+  const col1X     = ML + 6;
+  const col2X     = ML + colGap + 6;
+  const col1ValOff = 82;             // key -> value offset for column 1
+  const col2ValOff = 68;             // key -> value offset for column 2
+  const col1ValMaxW = colGap - col1ValOff - 15;
+  const col2ValMaxW = CW - colGap - col2ValOff - 10;
 
-  const metaKv = (col: 1 | 2, key: string, value: string) => {
+  const renderMetaCol = (col: 1 | 2, key: string, value: string, rowY: number): number => {
     const kx = col === 1 ? col1X : col2X;
-    const vx = kx + colValOff;
+    const vx = kx + (col === 1 ? col1ValOff : col2ValOff);
     const maxW = col === 1 ? col1ValMaxW : col2ValMaxW;
     doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...C.mid);
-    doc.text(`${key}:`, kx, y);
+    doc.text(`${key}:`, kx, rowY);
     doc.setTextColor(...C.dark);
-    // Clip long values to column width
+    // Wrap value cleanly without clipping
     const vLines = doc.splitTextToSize(value, maxW);
-    doc.text(vLines[0], vx, y);
+    for (let i = 0; i < vLines.length; i++) {
+      doc.text(vLines[i], vx, rowY + i * 10);
+    }
+    return vLines.length;
   };
 
-  metaKv(1, '8D report #',   data.reportId);
-  metaKv(2, 'Status date',   new Date(data.diagnosis.timestamp).toLocaleDateString());
-  y += 12;
-  metaKv(1, 'Machine / Line', data.machineId || 'Not specified');
-  metaKv(2, 'Report opened', new Date(data.diagnosis.timestamp).toLocaleString());
-  y += 12;
-  metaKv(1, 'Material',       data.diagnosis.material || 'Not specified');
-  metaKv(2, 'Defect type',   data.diagnosis.defect.defectName);
-  y += 12;
-  metaKv(1, 'Affected units', data.affectedCount || 'Not specified');
-  metaKv(2, 'System',       data.engineLabel);
-  y += 12;
-  metaKv(1, 'Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`);
-  y += 14;
+  const metaRow = (c1?: [string, string], c2?: [string, string]) => {
+    let lines1 = 0;
+    let lines2 = 0;
+    if (c1) lines1 = renderMetaCol(1, c1[0], c1[1], y);
+    if (c2) lines2 = renderMetaCol(2, c2[0], c2[1], y);
+    const maxLines = Math.max(1, lines1, lines2);
+    y += Math.max(12, (maxLines - 1) * 10 + 12);
+  };
+
+  metaRow(['8D report #',   data.reportId],
+          ['Status date',   new Date(data.diagnosis.timestamp).toLocaleDateString()]);
+  metaRow(['Machine / Line', data.machineId || 'Not specified'],
+          ['Report opened', new Date(data.diagnosis.timestamp).toLocaleString()]);
+  metaRow(['Material',       data.diagnosis.material || 'Not specified'],
+          ['Defect type',   data.diagnosis.defect.defectName]);
+  metaRow(['Affected units', data.affectedCount || 'Not specified'],
+          ['System',        data.engineLabel]);
+  metaRow(['Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`]);
+  y += 2;
 
   // Presentation-only caveat: same rule as the on-screen badge, no math changed
   if (isLowConfidence(data.diagnosis.defect.defectConfidence, data.diagnosis.activeSymptoms.length)) {
@@ -326,8 +331,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   endSection();
 
   // ── D2 Problem Description ──────────────────────────────────────────────────
-  // Estimate height: header(40) + 5 kv rows(70) + description(50) + image(optional 200)
-  const d2EstH = 40 + 70 + 60 + (data.imageUrl ? 220 : 0);
+  // Estimate height: header(40) + 6 kv rows(85) + description(50) + image(optional 200)
+  const d2EstH = 40 + 85 + 60 + (data.imageUrl ? 220 : 0);
   guard(d2EstH);
   beginSection('Problem description', 'D2');
   kv('What',     data.diagnosis.defect.defectName);
@@ -335,6 +340,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   kv('When',     new Date(data.diagnosis.timestamp).toLocaleString());
   kv('How many', data.affectedCount || 'Not specified');
   kv('How',      'Detected via automated solder paste inspection (SPI)');
+  kv('System',   data.engineLabel);
   y += 4;
   para(data.diagnosis.defect.defectDescription);
 
@@ -633,10 +639,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     data.confirmedCause || '(Awaiting engineer confirmation)',
     CW - 160,
   );
-  doc.text(confirmedLines[0], ML + 130, y);
-  y += 12;
-  if (confirmedLines.length > 1) {
-    doc.text(confirmedLines[1], ML + 130, y);
+  for (const line of confirmedLines) {
+    doc.text(line, ML + 130, y);
     y += 12;
   }
   y += 2;
