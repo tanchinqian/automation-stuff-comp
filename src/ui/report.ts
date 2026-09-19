@@ -201,10 +201,16 @@ function getStageCompletion(stageId: string, form: ReportFormData): 'completed' 
   }
 }
 
+let activeReportScrollCleanup: (() => void) | null = null;
+
 // ---------------------------------------------------------------------------
 // Tab renderer
 // ---------------------------------------------------------------------------
 export function renderReportTab(host: HTMLElement): void {
+  if (activeReportScrollCleanup) {
+    activeReportScrollCleanup();
+    activeReportScrollCleanup = null;
+  }
   clear(host);
   const layout = el('div', 'layout');
   host.appendChild(layout);
@@ -247,6 +253,15 @@ export function renderReportTab(host: HTMLElement): void {
   stepperHead.appendChild(stepperCount);
   stepperPanel.appendChild(stepperHead);
 
+  const setActiveStage = (stageId: string) => {
+    sidebar.querySelectorAll('.report-nav-item').forEach((item) => {
+      item.classList.toggle('active', item.getAttribute('data-nav-stage') === stageId);
+    });
+  };
+
+  let isClickScrolling = false;
+  let clickScrollTimeout: number | undefined;
+
   const navList = el('div', 'report-nav-list');
   for (const stage of STAGES) {
     const navBtn = el('button', 'report-nav-item') as HTMLButtonElement;
@@ -260,7 +275,13 @@ export function renderReportTab(host: HTMLElement): void {
       e.preventDefault();
       const target = document.getElementById(`card-${stage.id}`);
       if (target) {
+        isClickScrolling = true;
+        window.clearTimeout(clickScrollTimeout);
+        clickScrollTimeout = window.setTimeout(() => {
+          isClickScrolling = false;
+        }, 800);
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActiveStage(stage.id);
       }
     };
     navList.appendChild(navBtn);
@@ -630,28 +651,51 @@ export function renderReportTab(host: HTMLElement): void {
     return card;
   };
 
-  // Intersection observer to track which stage is in view
-  let navObserver: IntersectionObserver | null = null;
-  const setupNavObserver = () => {
-    navObserver?.disconnect();
-    if (typeof IntersectionObserver === 'undefined') return;
-    navObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const stageId = entry.target.id.replace('card-', '');
-            sidebar.querySelectorAll('.report-nav-item').forEach((item) => {
-              item.classList.toggle('active', item.getAttribute('data-nav-stage') === stageId);
-            });
-            break;
-          }
-        }
-      },
-      { rootMargin: '-20% 0px -60% 0px' },
-    );
-    mainHost.querySelectorAll('.report-card').forEach((c) => {
-      navObserver!.observe(c);
-    });
+  // Scroll and focal-line stage tracker
+  let scrollRaf = 0;
+  const updateActiveStage = () => {
+    if (isClickScrolling) return;
+    const cards = Array.from(mainHost.querySelectorAll<HTMLElement>('.report-card'));
+    if (!cards.length) return;
+
+    // If scrolled to the bottom of the page/container, activate the last card (D8)
+    const scrollBottom = window.innerHeight + window.scrollY;
+    const docHeight = document.documentElement.scrollHeight;
+    if (scrollBottom >= docHeight - 48) {
+      const lastCard = cards[cards.length - 1];
+      setActiveStage(lastCard.id.replace('card-', ''));
+      return;
+    }
+
+    // Focal line: where the reader's eye rests (~32% down from viewport top)
+    const focalY = Math.max(120, window.innerHeight * 0.32);
+
+    let activeId = cards[0].id.replace('card-', '');
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      if (rect.top <= focalY && rect.bottom > 80) {
+        activeId = card.id.replace('card-', '');
+      }
+    }
+    setActiveStage(activeId);
+  };
+
+  const onScroll = () => {
+    if (!host.isConnected) {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      return;
+    }
+    if (scrollRaf) cancelAnimationFrame(scrollRaf);
+    scrollRaf = requestAnimationFrame(updateActiveStage);
+  };
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+
+  activeReportScrollCleanup = () => {
+    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onScroll);
   };
 
   // ------------------------------------------------------------------
@@ -749,7 +793,7 @@ export function renderReportTab(host: HTMLElement): void {
 
     updateProgress();
     refreshActionsEnabled();
-    setupNavObserver();
+    updateActiveStage();
   };
 
   // ------------------------------------------------------------------

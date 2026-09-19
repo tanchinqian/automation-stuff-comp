@@ -2524,6 +2524,7 @@ label,
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  padding-bottom: clamp(240px, 45vh, 520px);
 }
 
 /* Elevated D-Stage Card */
