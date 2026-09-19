@@ -508,9 +508,17 @@ export function renderReportTab(host: HTMLElement): void {
     wrap.appendChild(el('div', 'question-label', label));
     const grp = el('div', 'seg');
     const btns: HTMLButtonElement[] = [];
+    const updateSelection = () => {
+      btns.forEach((b) => {
+        const isSelected = b.textContent === form[key];
+        b.classList.toggle('active', isSelected);
+        const isResolved = ['Completed', 'Confirmed', 'Implemented', 'Yes'].includes(b.textContent || '');
+        b.classList.toggle('resolved', isSelected && isResolved);
+      });
+    };
     const select = (val: string) => {
       form[key] = val;
-      btns.forEach((b) => b.classList.toggle('active', b.textContent === val));
+      updateSelection();
       if (key === 'd3Status' && val === 'Completed' && !form.d3CompletedAt) {
         form.d3CompletedAt = nowLocalDatetime();
         const at = mainHost.querySelector<HTMLInputElement>('input[data-key="d3CompletedAt"]');
@@ -520,10 +528,10 @@ export function renderReportTab(host: HTMLElement): void {
     };
     for (const opt of options) {
       const b = button(opt, 'seg-btn', () => select(opt));
-      if (form[key] === opt) b.classList.add('active');
       btns.push(b);
       grp.appendChild(b);
     }
+    updateSelection();
     wrap.appendChild(grp);
     return wrap;
   };
@@ -532,8 +540,12 @@ export function renderReportTab(host: HTMLElement): void {
     const wrap = el('div', 'report-field');
     wrap.appendChild(el('div', 'question-label', label));
     const list = el('div', 'ro-list');
-    if (!values.length) list.appendChild(el('div', 'ro-empty', 'Not recorded'));
-    values.forEach((v, i) => list.appendChild(el('div', 'ro-item', `${i + 1}. ${v}`)));
+    if (!values.length) {
+      list.classList.add('empty');
+      list.appendChild(el('div', 'ro-empty', 'No recorded diagnostic steps'));
+    } else {
+      values.forEach((v, i) => list.appendChild(el('div', 'ro-item', `${i + 1}. ${v}`)));
+    }
     wrap.appendChild(list);
     return wrap;
   };
@@ -568,25 +580,24 @@ export function renderReportTab(host: HTMLElement): void {
     const card = el('div', 'telemetry-badge-card');
     const head = el('div', 'telemetry-head');
     head.appendChild(el('span', '', 'OPTICAL INSPECTION TELEMETRY · SPI DEFECT MATRIX'));
+    card.appendChild(head);
+
     const isPass = base.visionAnalysis
       ? base.visionAnalysis.board_verdict.toLowerCase() === 'pass'
       : (base.diagnosis.defect.defectName.toLowerCase() === 'good');
-    const verdictBadge = el('span', `telemetry-tag ${isPass ? 'good' : 'fail'}`, isPass ? 'BOARD PASS' : 'DEFECT DETECTED');
-    head.appendChild(verdictBadge);
-    card.appendChild(head);
 
     const tBody = el('div', 'telemetry-body');
     const primaryRow = el('div', 'telemetry-primary-row');
-    const defectName = el('div', 'telemetry-defect-name');
-    defectName.appendChild(el('span', '', base.diagnosis.defect.defectName));
-    primaryRow.appendChild(defectName);
-
-    const confTag = el(
+    const defectGroup = el('div', 'telemetry-defect-name');
+    defectGroup.appendChild(el('span', '', base.diagnosis.defect.defectName));
+    const verdictBadge = el(
       'span',
       `telemetry-tag ${isPass ? 'good' : 'fail'}`,
-      `${Math.round(base.diagnosis.defect.defectConfidence * 100)}% CONFIDENCE`,
+      isPass ? '[ BOARD PASS ]' : '[ DEFECT DETECTED ]',
     );
-    primaryRow.appendChild(confTag);
+    defectGroup.appendChild(verdictBadge);
+    primaryRow.appendChild(defectGroup);
+
     tBody.appendChild(primaryRow);
 
     const grid = el('div', 'telemetry-metrics-grid');
@@ -782,7 +793,7 @@ export function renderReportTab(host: HTMLElement): void {
     } else {
       select.innerHTML = allCases.map((c, i) => {
         const cause = c.resolvedCause ? `✓ ${humanize(c.resolvedCause)}` : 'open';
-        return `<option value="${i}">${c.idLabel} - ${fmtDate(c.timestamp)} - ${c.defectLabel ?? 'Unknown'} - ${cause}</option>`;
+        return `<option value="${i}">${c.idLabel} · ${fmtDate(c.timestamp)} · ${c.defectLabel ?? 'Unknown'} · ${cause}</option>`;
       }).join('');
       const idx = selectedCase ? allCases.indexOf(selectedCase) : 0;
       select.value = String(idx >= 0 ? idx : 0);
@@ -934,27 +945,28 @@ export function renderReportTab(host: HTMLElement): void {
 
   // Dev/test aid: fill every report field with a realistic sample (Change: demo)
   function fillSampleReport() {
-    const inAWeek = new Date(Date.now() + 7 * 86400000);
+    const tomorrow = new Date(Date.now() + 86400000);
     Object.assign(form, {
-      employeeName: form.employeeName || lsGet(LS_KEYS.employeeName!) || 'A. Engineer',
-      employeeId: form.employeeId || lsGet(LS_KEYS.employeeId!) || 'E-2048',
-      machineId: 'Dispenser A3',
-      affectedCount: '12 of 100 boards',
+      employeeName: 'A. Engineer (Lead QA)',
+      employeeId: 'E-2048 / T-1092',
+      machineId: 'Dispenser Head A3',
+      affectedCount: '14 of 100 units affected',
       d3Status: 'Completed',
-      d3Action: 'Stopped the line and purged the syringe until the flow was continuous.',
-      d3CompletedBy: 'A. Engineer',
+      d3Action: 'Purged syringe line, verified backpressure at 0.35 MPa, replaced disposable 27G dispense tip.',
+      d3CompletedBy: 'A. Engineer (Lead QA)',
       d3CompletedAt: nowLocalDatetime(),
       d4Status: 'Confirmed',
-      d4Method: 'Three test shots confirmed the air bubble was cleared.',
+      d4Method: 'Acoustic micro-void check confirmed trapped micro-air pocket near syringe piston interface.',
       d5Status: 'In Progress',
-      d5TargetDate: inAWeek.toISOString().slice(0, 10),
-      d5Responsible: 'B. Technician',
-      d6Action: 'Replaced the nozzle and recalibrated the dispense height.',
+      d5TargetDate: tomorrow.toISOString().slice(0, 10),
+      d5Responsible: 'B. Technician (Process Eng)',
+      d6Action: 'Installed inline bubble sensor and updated syringe priming sequence in recipe v4.2.',
       d6Status: 'Implemented',
       d6Verified: 'Yes',
-      d7Notes: 'Purged the syringe and replaced the nozzle; dispense volume is repeatable again.',
-      confirmedCause: form.confirmedCause || 'Air trapped in syringe / supply',
-      closedBy: form.closedBy || 'A. Engineer',
+      d7Notes: 'Standardize syringe thaw-and-degas timing; update daily pre-flight check sheet.',
+      confirmedCause: 'Air trapped in syringe / fluid supply',
+      closedBy: 'A. Engineer (Lead QA)',
+      closedDate: new Date().toISOString().slice(0, 10),
     });
     lsSet(LS_KEYS.employeeName!, form.employeeName);
     lsSet(LS_KEYS.employeeId!, form.employeeId);

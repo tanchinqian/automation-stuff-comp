@@ -2327,6 +2327,7 @@ label,
   gap: 14px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 @media (max-width: 980px) {
@@ -2345,6 +2346,7 @@ label,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
 }
 
 .report-source {
@@ -2352,24 +2354,35 @@ label,
   border-radius: var(--r-4);
   padding: 12px;
   background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: hidden;
 }
 .report-radio {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--ink);
-  margin-top: 6px;
+  margin-top: 4px;
   cursor: pointer;
 }
 .report-radio input { accent-color: var(--brand); }
 .report-radio input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand-glow); border-radius: 50%; }
-.report-radio-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.report-radio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  width: 100%;
+}
 .report-radio-row select {
-  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
   font-family: var(--mono);
-  font-size: 12.5px;
-  padding: 7px 10px;
+  font-size: 11px;
+  padding: 6px 8px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-1);
@@ -2684,8 +2697,13 @@ label,
 }
 .telemetry-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+}
+@media (max-width: 860px) {
+  .telemetry-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .telemetry-metric-tile {
   background: var(--bg-1);
@@ -2694,12 +2712,12 @@ label,
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 .metric-tile-lbl {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
@@ -2709,6 +2727,9 @@ label,
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panel.report-panel {
@@ -2767,25 +2788,46 @@ label,
 .seg {
   display: inline-flex;
   flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-0);
   border: 1px solid var(--line);
   border-radius: var(--r-4);
-  overflow: hidden;
   width: fit-content;
 }
 .seg .seg-btn {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-3);
+  background: var(--bg-2);
   color: var(--ink-dim);
-  padding: 7px 12px;
+  padding: 6px 12px;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
-.seg .seg-btn.active { background: var(--bg-3); color: var(--ink); }
-.seg .seg-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand-glow); }
+.seg .seg-btn:hover {
+  background: var(--bg-3);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.seg .seg-btn.active {
+  background: var(--brand);
+  color: var(--bg-0);
+  border-color: var(--brand);
+  font-weight: 700;
+}
+.seg .seg-btn.active.resolved {
+  background: var(--status-good);
+  color: var(--bg-0);
+  border-color: var(--status-good);
+  font-weight: 700;
+}
+.seg .seg-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--brand);
+}
 .ro-list {
   display: flex;
   flex-direction: column;
@@ -2795,8 +2837,18 @@ label,
   border-radius: var(--r-4);
   background: var(--bg-2);
 }
-.ro-item { font-family: var(--mono); font-size: 13.5px; color: var(--ink); }
-.ro-empty { font-size: 13px; color: var(--ink-faint); }
+.ro-list.empty {
+  border: 1px dashed var(--line);
+  background: var(--bg-0);
+  padding: 8px 12px;
+}
+.ro-item { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.ro-empty {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
 
 /* ---------- Workbench sub-tabs (Inspect & Diagnose / Report) ---------- */
 .subtabs {
