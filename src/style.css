@@ -2304,19 +2304,60 @@ label,
   margin-top: 12px;
 }
 
-/* ---------- Report tab: source selector, fields, progress ---------- */
+/* ---------- Report tab: High-Density Industrial Quality Console ---------- */
+.report-console-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 980px) {
+  .report-console-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-sidebar {
+  position: sticky;
+  top: calc(var(--topbar-h, 56px) + 50px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+@media (max-width: 980px) {
+  .report-sidebar {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+.report-sidebar-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .report-source {
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   padding: 12px;
-  margin-bottom: 14px;
   background: var(--bg-2);
 }
 .report-radio {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--ink);
   margin-top: 6px;
   cursor: pointer;
@@ -2327,23 +2368,125 @@ label,
 .report-radio-row select {
   flex: 1;
   font-family: var(--mono);
-  font-size: 13px;
-  padding: 8px 10px;
+  font-size: 12.5px;
+  padding: 7px 10px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
-  background: var(--bg-2);
+  background: var(--bg-1);
   color: var(--ink);
   outline: none;
 }
+
+/* Sidebar D-Stage Stepper Navigation */
+.report-stepper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px;
+}
+.report-stepper-title {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  font-weight: 700;
+}
+.report-stepper-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.report-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.report-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-3);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-dim);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 12.5px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.report-nav-item:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+  border-color: var(--line-soft);
+}
+.report-nav-item.active {
+  background: var(--bg-2);
+  color: var(--brand);
+  border-color: var(--brand-dim);
+  font-weight: 600;
+}
+.nav-step-code {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: var(--r-2);
+  background: var(--bg-3);
+  color: var(--ink);
+  flex-shrink: 0;
+}
+.report-nav-item.active .nav-step-code {
+  background: var(--brand-tint);
+  color: var(--brand);
+}
+.nav-step-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--sans);
+}
+.nav-step-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nav-step-status.done {
+  background: var(--good-tint);
+  color: var(--status-good);
+  font-weight: 700;
+}
+.nav-step-status.wip {
+  background: var(--warn-tint);
+  color: var(--status-warn);
+  font-weight: 700;
+}
+.nav-step-status.pending {
+  color: var(--ink-faint);
+}
+
+/* Progress summary widget */
 .report-progress {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-top: 4px;
 }
 .report-progress-label {
   font-family: var(--mono);
-  font-size: 13.5px;
+  font-size: 12px;
   color: var(--ink-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -2358,9 +2501,255 @@ label,
 .report-progress-fill {
   height: 100%;
   width: 0;
-  background: var(--data-viz-1);
+  background: var(--brand);
   border-radius: var(--r-2);
 }
+
+/* Main Form Area */
+.report-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Elevated D-Stage Card */
+.report-card {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  overflow: hidden;
+  scroll-margin-top: calc(var(--topbar-h, 56px) + 50px);
+}
+.report-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.stage-badge {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--r-2);
+  background: var(--brand-tint);
+  color: var(--brand);
+  border: 1px solid var(--brand-dim);
+  flex-shrink: 0;
+}
+.stage-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stage-status-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--r-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.stage-status-badge.completed {
+  background: var(--good-tint);
+  color: var(--status-good);
+  border: 1px solid rgba(90, 158, 111, 0.4);
+}
+.stage-status-badge.progress {
+  background: var(--warn-tint);
+  color: var(--status-warn);
+  border: 1px solid var(--warn-border);
+}
+.stage-status-badge.pending {
+  background: var(--bg-3);
+  color: var(--ink-faint);
+  border: 1px solid var(--line);
+}
+
+.report-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Multi-column responsive input grids */
+.report-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.report-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 720px) {
+  .report-grid-2,
+  .report-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.report-field .question-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* D2 Inspection Telemetry Badge Card */
+.telemetry-badge-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.telemetry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.telemetry-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.telemetry-primary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.telemetry-defect-name {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.telemetry-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--r-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.telemetry-tag.fail {
+  background: var(--fail-tint);
+  color: var(--status-fail);
+  border: 1px solid rgba(255, 95, 109, 0.4);
+}
+.telemetry-tag.good {
+  background: var(--good-tint);
+  color: var(--status-good);
+  border: 1px solid rgba(90, 158, 111, 0.4);
+}
+.telemetry-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+.telemetry-metric-tile {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-3);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-tile-lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.metric-tile-val {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel.report-panel {
+  overflow: visible;
+}
+.report-panel .panel-body {
+  padding-bottom: 0;
+}
+
+/* Sticky Bottom Action Bar */
+.report-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  margin-left: -16px;
+  margin-right: -16px;
+  flex-wrap: wrap;
+}
+.bottom-bar-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 240px;
+}
+.bottom-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
 .report-form { display: flex; flex-direction: column; gap: 12px; }
 .report-discipline-head {
   font-family: var(--sans);
@@ -2375,7 +2764,6 @@ label,
   margin-bottom: 4px;
   letter-spacing: 0.02em;
 }
-.report-field { display: flex; flex-direction: column; gap: 4px; }
 .seg {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2389,10 +2777,11 @@ label,
   border-radius: 0;
   background: transparent;
   color: var(--ink-dim);
-  padding: 8px 14px;
+  padding: 7px 12px;
   font-family: var(--mono);
-  font-size: 13.5px;
+  font-size: 12.5px;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
 .seg .seg-btn.active { background: var(--bg-3); color: var(--ink); }
@@ -2406,8 +2795,8 @@ label,
   border-radius: var(--r-4);
   background: var(--bg-2);
 }
-.ro-item { font-family: var(--mono); font-size: 14px; color: var(--ink); }
-.ro-empty { font-size: 14px; color: var(--ink-faint); }
+.ro-item { font-family: var(--mono); font-size: 13.5px; color: var(--ink); }
+.ro-empty { font-size: 13px; color: var(--ink-faint); }
 
 /* ---------- Workbench sub-tabs (Inspect & Diagnose / Report) ---------- */
 .subtabs {
