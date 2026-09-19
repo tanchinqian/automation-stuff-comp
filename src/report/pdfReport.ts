@@ -164,19 +164,21 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += gap;
   };
 
-  // Key : Value in two columns - value wraps across lines without clipping
+  // Key : Value in two columns - value wraps across lines without clipping or key overlap
   const kv = (key: string, value: string, indent = 0) => {
     const keyX  = ML + indent + 6;
-    const valX  = ML + indent + 110;
-    const maxW  = CW - indent - 116; // remaining width to right box edge
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    const keyStr = key.toUpperCase() + ':';
+    const keyW = doc.getTextWidth(keyStr);
+    const valX = Math.max(ML + indent + 132, keyX + keyW + 8);
+    const maxW = CW - (valX - ML) - 6; // remaining width to right box edge
     const valLines = doc.splitTextToSize(value, maxW);
     const lineH = 11;
     const totalH = Math.max(13, (valLines.length - 1) * lineH + 13);
     guard(totalH + 2);
-    doc.setFont(FONT, 'bold');
-    doc.setFontSize(8.5);
     doc.setTextColor(...C.mid);
-    doc.text(key.toUpperCase() + ':', keyX, y);
+    doc.text(keyStr, keyX, y);
     doc.setFont(FONT, 'normal');
     doc.setTextColor(...C.dark);
     for (let i = 0; i < valLines.length; i++) {
