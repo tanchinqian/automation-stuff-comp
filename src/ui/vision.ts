@@ -510,7 +510,7 @@ export function createInspectionPanel(opts: {
       addStat('Coords', `[${Math.round(x1)}, ${Math.round(y1)}]`);
       addStat('Dimensions', `${Math.round(x2 - x1)} × ${Math.round(y2 - y1)} px`);
       addStat('Review Flag', leg.flag ? '⚠ Flagged' : '✓ Nominal', leg.flag ? 'var(--status-warn)' : 'var(--status-good)');
-      addStat('Model', 'YOLOv8s + MobileNetV2');
+      addStat('Model', 'YOLOv8n + MobileNetV2');
     } else if (pad) {
       addStat('Fill Ratio', `${(pad.fillRatio * 100).toFixed(1)}%`);
       addStat('Dimensions', `${Math.round(pad.rect.w)} × ${Math.round(pad.rect.h)} px`);
@@ -752,14 +752,14 @@ export function createInspectionPanel(opts: {
 
     // engine chip + tag
     const engineText =
-      lastEngine === 'api' ? 'YOLOv8s + classifier' : lastEngine === 'yolo' ? 'YOLOv8s' : 'classical';
+      lastEngine === 'api' ? 'YOLOv8n + classifier' : lastEngine === 'yolo' ? 'YOLOv8n' : 'classical';
     engineChip.textContent = `engine: ${engineText}`;
     engineChip.classList.toggle('stub', lastEngine === 'classical');
     const engineTag =
       lastEngine === 'api'
-        ? '<b style="color:var(--brand)">YOLOv8s + MobileNetV2</b>'
+        ? '<b style="color:var(--brand)">YOLOv8n + MobileNetV2</b>'
         : lastEngine === 'yolo'
-          ? '<b style="color:var(--brand)">YOLOv8s</b>'
+          ? '<b style="color:var(--brand)">YOLOv8n</b>'
           : '<b style="color:var(--warn)">classical</b>';
 
     // ground-truth comparison tag (real boards only)

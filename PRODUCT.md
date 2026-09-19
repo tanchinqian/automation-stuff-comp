@@ -21,7 +21,7 @@ Success means an operator reaches a confident, correct first troubleshooting ste
 
 ## Positioning
 
-A combined, transparent engine: a domain-grounded dispensing failure-mode knowledge base drives explainable rule-and-evidence scoring, paired with AI vision (a trained YOLOv8s detector with a classical per-pad CV fallback) and a case-based learning database. Every ranking is traceable to the symptom evidence and prior cases that produced it, and the core path runs on-device with a local pipeline server adding the trained vision pipeline and the Gemini-backed chat when present. A generic chatbot or a cloud API wrapper cannot truthfully claim this transparent, learning pipeline.
+A combined, transparent engine: a domain-grounded dispensing failure-mode knowledge base drives explainable rule-and-evidence scoring, paired with AI vision (a trained YOLOv8n detector with a classical per-pad CV fallback) and a case-based learning database. Every ranking is traceable to the symptom evidence and prior cases that produced it, and the core path runs on-device with a local pipeline server adding the trained vision pipeline and the Gemini-backed chat when present. A generic chatbot or a cloud API wrapper cannot truthfully claim this transparent, learning pipeline.
 
 ## Operating Context
 
@@ -32,7 +32,7 @@ A combined, transparent engine: a domain-grounded dispensing failure-mode knowle
 
 ## Capabilities and Constraints
 
-- Capabilities: free-text problem intake in the assistant chat; defect identification with confidence; ranked causes with likelihood bars and explained reasoning; troubleshooting action plan; AI vision (server pipeline: YOLOv8s leg detector + MobileNetV2 classifier, with on-device ONNX and classical per-pad CV fallbacks); dispensing quality score (shape/size/position/defect-risk to /100); IndexedDB case store merged with the server case log, feeding cause priors; on-device PDF report.
+- Capabilities: free-text problem intake in the assistant chat; defect identification with confidence; ranked causes with likelihood bars and explained reasoning; troubleshooting action plan; AI vision (server pipeline: YOLOv8n leg detector + MobileNetV2 classifier, with on-device ONNX and classical per-pad CV fallbacks); dispensing quality score (shape/size/position/defect-risk to /100); IndexedDB case store merged with the server case log, feeding cause priors; on-device PDF report.
 - NLU is a layered fallback: Chrome Gemini Nano, then an on-device model (transformers.js), then an embedded keyword engine. It always works offline; the model download needs internet once.
 - Constraints: vanilla TypeScript + Vite, no framework. The browser app talks to an optional local FastAPI pipeline server (server/); without it, vision falls back on-device and the chat falls back to offline templates.
 - Undecided: none material.

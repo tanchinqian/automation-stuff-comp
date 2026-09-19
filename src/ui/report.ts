@@ -645,7 +645,7 @@ export function renderReportTab(host: HTMLElement): void {
       addMetric('Severity', base.diagnosis.defect.defectConfidence > 0.7 ? 'CRITICAL' : 'MODERATE');
     }
 
-    addMetric('Detection Engine', 'YOLOv8s + MobileNetV2');
+    addMetric('Detection Engine', 'YOLOv8n + MobileNetV2');
     tBody.appendChild(grid);
     card.appendChild(tBody);
     return card;
