@@ -698,10 +698,15 @@ label,
 /* bars */
 .bar-row {
   display: grid;
-  grid-template-columns: 160px 1fr 48px auto;
+  grid-template-columns: minmax(190px, 260px) 1fr 48px auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 7px 0;
+}
+@media (max-width: 680px) {
+  .bar-row {
+    grid-template-columns: 140px 1fr 44px auto;
+  }
 }
 .bar-row + .bar-row {
   border-top: 1px solid var(--line-soft);
