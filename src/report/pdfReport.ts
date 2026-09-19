@@ -478,12 +478,16 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += 12;
 
     // Row 2: brief description in grey, indented under cause name
-    const descLine = doc.splitTextToSize(c.description, CW - 36)[0];
+    const descLines = doc.splitTextToSize(c.description, CW - 36);
     doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...C.mid);
-    doc.text(descLine, ML + 26, y);
-    y += 14;
+    for (const line of descLines) {
+      guard(11);
+      doc.text(line, ML + 26, y);
+      y += 11;
+    }
+    y += 3;
 
     // Row 3: WHY reasons (lighter, smaller, italic) - only when present
     if (c.reasons && c.reasons.length > 0) {
