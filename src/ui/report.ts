@@ -422,12 +422,12 @@ export function renderReportTab(host: HTMLElement): void {
     const actions = base.actions;
 
     // D1
-    formHost.appendChild(el('div', 'question-label', 'D1 - Individual'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D1 · Individual'));
     formHost.appendChild(field('Employee name', 'employeeName', { placeholder: 'Employee name' }));
     formHost.appendChild(field('Employee ID', 'employeeId', { placeholder: 'Employee ID' }));
 
     // D2
-    formHost.appendChild(el('div', 'question-label', 'D2 - Problem description'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D2 · Problem Description'));
     formHost.appendChild(field('Machine / line', 'machineId', { placeholder: 'Machine / Line ID (e.g. Dispenser A3)' }));
     formHost.appendChild(field('Affected units', 'affectedCount', { placeholder: 'Affected unit count (e.g. 12 of 100 boards)' }));
     const summary = el('div', 'ro-list');
@@ -439,7 +439,7 @@ export function renderReportTab(host: HTMLElement): void {
     formHost.appendChild(summary);
 
     // D3
-    formHost.appendChild(el('div', 'question-label', 'D3 - Immediate containment action'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D3 · Immediate Containment Action'));
     formHost.appendChild(readOnly('Containment steps', actions.slice(0, 2).map((a) => a.title)));
     formHost.appendChild(segmented('Status', 'd3Status', D3_OPTIONS));
     formHost.appendChild(textareaField('Action taken', 'd3Action', 'Describe the immediate action taken to contain the issue...'));
@@ -449,30 +449,30 @@ export function renderReportTab(host: HTMLElement): void {
     formHost.appendChild(atField);
 
     // D4
-    formHost.appendChild(el('div', 'question-label', 'D4 - Root cause verification'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D4 · Root Cause Verification'));
     formHost.appendChild(readOnly('Ranked causes', causes.slice(0, 5).map((c) => `${c.name} - ${Math.round(c.score * 100)}%`)));
     formHost.appendChild(segmented('Status', 'd4Status', D4_OPTIONS));
     formHost.appendChild(field('Verification method', 'd4Method', { placeholder: 'How was the root cause verified? e.g. test shots confirmed...' }));
 
     // D5
-    formHost.appendChild(el('div', 'question-label', 'D5 - Planned corrective action'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D5 · Planned Corrective Action'));
     formHost.appendChild(readOnly('Action plan', actions.slice(2).map((a) => a.title)));
     formHost.appendChild(segmented('Implementation status', 'd5Status', D5_OPTIONS));
     formHost.appendChild(field('Target date', 'd5TargetDate', { type: 'date' }));
     formHost.appendChild(field('Responsible person', 'd5Responsible', { placeholder: 'Name' }));
 
     // D6
-    formHost.appendChild(el('div', 'question-label', 'D6 - Permanent corrective action'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D6 · Permanent Corrective Action'));
     formHost.appendChild(textareaField('Action description', 'd6Action', 'Describe the permanent fix implemented...'));
     formHost.appendChild(segmented('Status', 'd6Status', D6_STATUS_OPTIONS));
     formHost.appendChild(segmented('Verified effective', 'd6Verified', D6_VERIFIED_OPTIONS));
 
     // D7
-    formHost.appendChild(el('div', 'question-label', 'D7 - Process note / lessons learned'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D7 · Process Note / Lessons Learned'));
     formHost.appendChild(textareaField('Notes', 'd7Notes', 'Describe any SOP changes, parameter adjustments, or preventive actions taken...'));
 
     // D8
-    formHost.appendChild(el('div', 'question-label', 'D8 - Close report'));
+    formHost.appendChild(el('div', 'report-discipline-head', 'D8 · Close Report'));
     formHost.appendChild(field('Confirmed cause', 'confirmedCause', { placeholder: 'What actually fixed it?' }));
     formHost.appendChild(field('Operator name', 'closedBy', { placeholder: 'Operator name for sign-off' }));
 
