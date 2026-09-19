@@ -109,7 +109,11 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     doc.setTextColor(...C.black);
     doc.text('PasteTrace', ML, 31);
 
-    // Header title on left only
+    // Right: 8D Dispensing Defect Report
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.muted);
+    doc.text('8D Dispensing Defect Report', ML + CW, 31, { align: 'right' });
 
     // Divider: A crisp, subtle 0.5pt horizontal hairline beneath it spanning text width
     doc.setDrawColor(...C.light);
@@ -236,7 +240,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   // Guard with estimated height BEFORE beginSection() to avoid mid-section page breaks.
   let _boxStartY = 0;
 
-  const beginSection = (label: string, tag: string, padTop = 10) => {
+  const beginSection = (label: string, tag: string, padTop = 14) => {
     y += 8;
     _boxStartY = y;
     y += padTop; // top inner pad
@@ -271,26 +275,37 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
 
 
 
-  // ── Action step (plain text, no colored badge) ───────────────────────────────
-  const actionStep = (a: ActionStep) => {
-    const cleanDetail = a.detail.replace(/\n+/g, ' ');
-    const maxW = CW - 28;
-    const detailLines = doc.splitTextToSize(cleanDetail, maxW);
-    const stepH = 14 + detailLines.length * 11 + 4;
+  // ── Action step (plain text, uniform spacing) ──────────────────────────────
+  const actionStep = (a: ActionStep, customOrder?: number) => {
+    const orderNum = customOrder ?? a.order;
+    const cleanDetail = (a.detail || '').replace(/\n+/g, ' ').trim();
+    const maxW = CW - 20; // 495pt ensures 1-line fit for validated text in Inter
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(8.5);
+    const detailLines = cleanDetail ? doc.splitTextToSize(cleanDetail, maxW) : [];
+    const stepH = 12 + (detailLines.length ? detailLines.length * 10.5 + 4 : 0);
     guard(stepH);
+
     // Step number + title
     doc.setFont(FONT, 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...C.black);
-    const titleLines = doc.splitTextToSize(`${a.order}.  ${a.title}`, CW - 16);
+    const titleLines = doc.splitTextToSize(`${orderNum}.  ${a.title}`, CW - 16);
     doc.text(titleLines[0], ML + 6, y);
-    y += 13;
+    y += 12;
+
     // Detail text indented
-    doc.setFont(FONT, 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...C.charcoal);
-    doc.text(cleanDetail, ML + 18, y, { maxWidth: maxW, align: 'justify' });
-    y += detailLines.length * 11 + 4;
+    if (detailLines.length > 0) {
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...C.charcoal);
+      for (let i = 0; i < detailLines.length; i++) {
+        doc.text(detailLines[i], ML + 18, y + i * 10.5);
+      }
+      y += detailLines.length * 10.5 + 4;
+    } else {
+      y += 4;
+    }
   };
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -408,22 +423,14 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += vTableH + 8;
   }
 
-  // Inspection image - centered with 1px subtle border (#CBD5E1) and formal caption
+  // Inspection image - clean image crop with centered caption
   if (data.imageUrl) {
     y += 6;
     try {
       const imgW = Math.min(CW - 16, 280);
       const imgH = Math.round(imgW * 0.75);
       const imgX = ML + Math.round((CW - imgW) / 2);
-      
-      // Clean up stray text before drawing image
-      doc.setFillColor(255, 255, 255);
-      doc.rect(ML, y - 4, CW, imgH + 24, 'F');
-      
-      // Clean solid white background behind crop with 1px subtle border (#CBD5E1 -> [203, 213, 225])
-      doc.setDrawColor(...C.border);
-      doc.setLineWidth(0.75);
-      doc.rect(imgX, y, imgW, imgH, 'FD');
+
       doc.addImage(data.imageUrl, data.imageFormat ?? 'PNG', imgX, y, imgW, imgH);
       y += imgH + 8;
 
@@ -443,8 +450,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   // ── D3 Immediate containment action ────────────────────────────────────────
   newPage(); // Force Page 2
   const containSteps = data.actions.slice(0, 2);
-  beginSection('Immediate containment action', 'D3', 6);
-  for (const a of containSteps) actionStep(a);
+  beginSection('Immediate containment action', 'D3', 14);
+  for (let i = 0; i < containSteps.length; i++) actionStep(containSteps[i], i + 1);
 
   y += 6;
   // Clean 2-column status & sign-off block with matching 50% column widths
@@ -511,7 +518,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
 
   // ── D4 Root cause ───────────────────────────────────────────────────────────
   guard(80); // Ensure it fits after D3
-  beginSection('Root cause', 'D4', 6);
+  beginSection('Root cause', 'D4', 14);
 
   // AI reasoning
   para(data.diagnosis.defect.reasoning, { size: 9 });
@@ -737,7 +744,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     doc.setFont(FONT, 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...C.charcoal);
-    doc.text(subScoresText, vBoxX + vBoxW / 2, curY, { align: 'center' });
+    doc.text(subScoresText, vBoxX + vPadX, curY);
     curY += 11;
   } else {
     doc.setFont(FONT, 'bold');
@@ -796,7 +803,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   newPage(); // Force Page 3
   const correctiveSteps = data.actions.slice(2);
   beginSection('Planned permanent corrective action', 'D5', 16);
-  for (const a of correctiveSteps) actionStep(a);
+  for (let i = 0; i < correctiveSteps.length; i++) actionStep(correctiveSteps[i], i + 1);
   if (data.d5Status || data.d5TargetDate || data.d5Responsible) {
     y += 6;
     const d5ColW = CW / 2;
