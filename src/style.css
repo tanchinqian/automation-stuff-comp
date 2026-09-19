@@ -378,9 +378,9 @@ label,
   flex-shrink: 0;
 }
 .panel-head .subhead {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-dim);
   margin-left: auto;
 }
 .panel-head .live-badge {
@@ -513,9 +513,10 @@ label,
 }
 
 .nlu-note {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-dim);
   margin-top: 8px;
 }
 .nlu-note b {
@@ -1139,11 +1140,11 @@ label,
   border-radius: 4px;
 }
 .overlay-legend {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-dim);
   margin-top: 8px;
-  line-height: 1.65;
+  line-height: 1.5;
 }
 .legend-dot {
   display: inline-block;
@@ -1296,9 +1297,10 @@ label,
 }
 .pad-inspector-standby {
   padding: 12px 14px;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-dim);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1613,8 +1615,10 @@ label,
 
 .empty-state {
   text-align: center;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  color: var(--ink-dim);
   font-size: 13px;
+  line-height: 1.5;
   padding: 40px 20px;
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
@@ -1801,9 +1805,9 @@ label,
 }
 .tl-hint {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-dim);
 }
 
 /* Two-column Related-cases body: compact timeline + case info */
@@ -2232,7 +2236,9 @@ label,
 .case-footer { margin-top: 16px; display: flex; justify-content: flex-end; }
 .case-empty {
   padding: 14px 4px;
+  font-family: var(--sans);
   font-size: 13px;
+  line-height: 1.5;
   color: var(--ink-dim);
 }
 .case-link {
@@ -2845,10 +2851,10 @@ label,
 }
 .ro-item { font-family: var(--mono); font-size: 13px; color: var(--ink); }
 .ro-empty {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--sans);
+  font-size: 12.5px;
   font-style: italic;
-  color: var(--ink-faint);
+  color: var(--ink-dim);
 }
 
 /* ---------- Workbench sub-tabs (Inspect & Diagnose / Report) ---------- */
@@ -3053,8 +3059,9 @@ label,
 }
 .case-note {
   margin-bottom: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--ink-dim);
 }
 .case-note.warn {
@@ -3080,11 +3087,29 @@ label,
   color: var(--ink-dim);
   line-height: 1.55;
 }
-.cal-group {
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   margin-bottom: 20px;
 }
+@media (max-width: 980px) {
+  .cal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.cal-group {
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--bg-1);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
 .cal-group-head {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
 }
 .cal-title {
   font-family: var(--sans);
@@ -3100,9 +3125,9 @@ label,
 }
 .cal-row {
   display: grid;
-  grid-template-columns: 180px minmax(120px, 260px) 52px;
+  grid-template-columns: 140px minmax(100px, 1fr) 48px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 6px 0;
 }
 .cal-label {

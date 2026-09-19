@@ -282,7 +282,7 @@ export function createInspectionPanel(opts: {
   // hover tooltip showing a leg's label + confidence
   const tooltip = el('div', 'overlay-tooltip');
   tooltip.style.cssText =
-    'position:absolute;pointer-events:none;padding:5px 8px;font:12px/1.4 var(--mono);' +
+    'position:absolute;pointer-events:none;padding:5px 8px;font:12px/1.4 var(--sans);font-variant-numeric:tabular-nums;' +
     'background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-3);' +
     'color:var(--ink);display:none;white-space:nowrap;z-index:5;';
   frame.style.position = 'relative';
