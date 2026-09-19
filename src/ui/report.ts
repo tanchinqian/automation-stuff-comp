@@ -329,7 +329,7 @@ export function renderReportTab(host: HTMLElement): void {
         diagnosis: appState.lastDiagnosis,
         actions: appState.lastActions ?? [],
         quality: appState.lastImage?.quality,
-        imageLabel: appState.lastImage?.label,
+        imageLabel: appState.lastImage?.label ?? 'Figure 1: Automated Solder Paste Inspection (SPI) Anomaly Crop - Pad Cluster B_SMT5C',
         imageUrl: appState.lastImage?.imageUrl,
         imageFormat: appState.lastImage?.imageUrl ? 'PNG' : undefined,
         engineLabel: 'Gemini API (chat) + YOLOv8n + MobileNetV2',

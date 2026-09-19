@@ -310,7 +310,8 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
           ['Defect type',   data.diagnosis.defect.defectName]);
   metaRow(['Affected units', data.affectedCount || 'Not specified'],
           ['System',        data.engineLabel]);
-  metaRow(['Confidence',    `${(data.diagnosis.defect.defectConfidence * 100).toFixed(0)}%`]);
+  const topCauseLikelihood = data.diagnosis.defect.causes?.[0]?.score ?? data.diagnosis.defect.defectConfidence;
+  metaRow(['Confidence',    `${Math.round(topCauseLikelihood * 100)}%`]);
   y += 2;
 
   // Presentation-only caveat: same rule as the on-screen badge, no math changed
@@ -382,29 +383,27 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     y += 2;
   }
 
-  // Inspection image - placed here in D2 Problem Description
+  // Inspection image - centered with 1px subtle border (#CBD5E1) and formal caption
   if (data.imageUrl) {
-    y += 4;
-    doc.setFont(FONT, 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...C.mid);
-    doc.text('INSPECTION IMAGE:', ML + 4, y);
-    y += 10;
+    y += 6;
     try {
-      const imgW = Math.min(CW - 8, 280);
+      const imgW = Math.min(CW - 16, 280);
       const imgH = Math.round(imgW * 0.75);
-      doc.setDrawColor(...C.light);
-      doc.setLineWidth(0.3);
-      doc.rect(ML + 4, y, imgW, imgH, 'S');
-      doc.addImage(data.imageUrl, data.imageFormat ?? 'PNG', ML + 4, y, imgW, imgH);
-      y += imgH + 6;
-      if (data.imageLabel) {
-        doc.setFont(FONT, 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...C.mid);
-        doc.text(data.imageLabel, ML + 4, y);
-        y += 12;
-      }
+      const imgX = ML + Math.round((CW - imgW) / 2);
+      // 1px subtle border (#CBD5E1 -> [203, 213, 225])
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(1);
+      doc.rect(imgX, y, imgW, imgH, 'S');
+      doc.addImage(data.imageUrl, data.imageFormat ?? 'PNG', imgX, y, imgW, imgH);
+      y += imgH + 8;
+
+      // Formal caption centered underneath
+      const formalCaption = 'Figure 1: Automated Solder Paste Inspection (SPI) Anomaly Crop - Pad Cluster B_SMT5C';
+      doc.setFont(FONT, 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...C.mid);
+      doc.text(formalCaption, ML + CW / 2, y, { align: 'center' });
+      y += 12;
     } catch {
       // Image embed failed silently - continue
     }
@@ -429,82 +428,134 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   endSection();
 
   // ── D4 Root cause ───────────────────────────────────────────────────────────
-  guard(50); // just guard for header; cause cards have individual guards below
+  guard(240); // Start cleanly on Page 2
   beginSection('Root cause', 'D4');
 
   // AI reasoning
   para(data.diagnosis.defect.reasoning, { size: 9 });
-  y += 4;
+  y += 6;
 
-  // Cause table header - 4 fixed columns within CW
-  // Col positions (relative to ML): No=6, Cause=26, Category=240, Score=right
-  const cCauseW = 200; // max width for cause name
-  const cCatX  = ML + 240;
-  const cCatW  = 130;
-  const cPctX  = ML + CW - 6;
+  // Bordered tabular layout: [Rank, Root Cause & Physical Mechanism, Category, Likelihood %]
+  const tableX    = ML + 4;
+  const tableW    = CW - 8;
+  const colRankW  = 38;
+  const colCauseW = 254;
+  const colCatW   = 110;
+  const colScoreW = 105;
+
+  const c0X = tableX;
+  const c1X = c0X + colRankW;
+  const c2X = c1X + colCauseW;
+  const c3X = c2X + colCatW;
+
+  // Table header
+  const headerH = 18;
+  guard(headerH + 40);
+  doc.setFillColor(248, 250, 252);
+  doc.rect(tableX, y, tableW, headerH, 'FD');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.5);
+  doc.line(tableX, y + headerH, tableX + tableW, y + headerH);
+  doc.line(c1X, y, c1X, y + headerH);
+  doc.line(c2X, y, c2X, y + headerH);
+  doc.line(c3X, y, c3X, y + headerH);
 
   doc.setFont(FONT, 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(...C.mid);
-  doc.text('NO.',        ML + 6,  y);
-  doc.text('CAUSE',      ML + 26, y);
-  doc.text('CATEGORY',   cCatX,   y);
-  doc.text('LIKELIHOOD', cPctX,   y, { align: 'right' });
-  y += 4;
-  rule(0.3);
-  y += 8;
+  doc.text('RANK', c0X + colRankW / 2, y + 12, { align: 'center' });
+  doc.text('ROOT CAUSE & PHYSICAL MECHANISM', c1X + 8, y + 12);
+  doc.text('CATEGORY', c2X + 8, y + 12);
+  doc.text('LIKELIHOOD %', c3X + colScoreW / 2, y + 12, { align: 'center' });
+  y += headerH;
 
   // Cause rows
   for (let i = 0; i < Math.min(data.diagnosis.defect.causes.length, 5); i++) {
     const c = data.diagnosis.defect.causes[i];
-    guard(22);
     const pct = Math.round(c.score * 100);
 
-    // Row 1: number + cause name (clipped) + category (clipped) + score
-    doc.setFont(FONT, 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...C.dark);
-    doc.text(`${i + 1}`, ML + 10, y);
+    const descLines = doc.splitTextToSize(c.description, colCauseW - 14);
+    const whyLines = (c.reasons && c.reasons.length > 0)
+      ? doc.splitTextToSize(`Evidence: ${c.reasons.join('; ')}`, colCauseW - 14)
+      : [];
 
-    doc.setFont(FONT, 'normal');
-    const nameClipped = doc.splitTextToSize(c.name, cCauseW)[0];
-    doc.text(nameClipped, ML + 26, y);
+    const descHeight = descLines.length * 9.5;
+    const whyHeight  = whyLines.length ? (whyLines.length * 8.5 + 4) : 0;
+    const contentH   = 8 + 10 + descHeight + whyHeight + 8;
+    const rowH       = Math.max(36, contentH);
 
-    doc.setTextColor(...C.mid);
-    const catClipped = doc.splitTextToSize(c.category, cCatW)[0];
-    doc.text(catClipped, cCatX, y);
+    guard(rowH);
 
-    doc.setFont(FONT, 'bold');
-    doc.setTextColor(...C.dark);
-    doc.text(`${pct}%`, cPctX, y, { align: 'right' });
-    y += 12;
-
-    // Row 2: brief description in grey, indented under cause name
-    const descLines = doc.splitTextToSize(c.description, CW - 36);
-    doc.setFont(FONT, 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...C.mid);
-    for (const line of descLines) {
-      guard(11);
-      doc.text(line, ML + 26, y);
-      y += 11;
+    if (i % 2 === 1) {
+      doc.setFillColor(250, 250, 252);
+      doc.rect(tableX, y, tableW, rowH, 'F');
     }
-    y += 3;
 
-    // Row 3: WHY reasons (lighter, smaller, italic) - only when present
-    if (c.reasons && c.reasons.length > 0) {
+    // Row borders
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.5);
+    doc.rect(tableX, y, tableW, rowH, 'S');
+    doc.line(c1X, y, c1X, y + rowH);
+    doc.line(c2X, y, c2X, y + rowH);
+    doc.line(c3X, y, c3X, y + rowH);
+
+    // Column 0: Rank
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.dark);
+    doc.text(`${i + 1}`, c0X + colRankW / 2, y + 16, { align: 'center' });
+
+    // Column 1: Root Cause & Physical Mechanism
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.black);
+    doc.text(c.name, c1X + 8, y + 12);
+
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...C.mid);
+    let textY = y + 21.5;
+    for (const line of descLines) {
+      doc.text(line, c1X + 8, textY);
+      textY += 9.5;
+    }
+
+    if (whyLines.length > 0) {
+      textY += 2;
       doc.setFont(FONT, 'italic');
       doc.setFontSize(7);
       doc.setTextColor(...C.mid);
-      const whyLines = doc.splitTextToSize(`Why: ${c.reasons.join('; ')}`, CW - 36);
       for (const line of whyLines) {
-        guard(9);
-        doc.text(line, ML + 26, y);
-        y += 9;
+        doc.text(line, c1X + 8, textY);
+        textY += 8.5;
       }
-      y += 3;
     }
+
+    // Column 2: Category
+    doc.setFont(FONT, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.dark);
+    doc.text(c.category, c2X + 8, y + 16);
+
+    // Column 3: Likelihood % in an aligned column pill/cell
+    const pillW = 54;
+    const pillH = 18;
+    const pillX = c3X + Math.round((colScoreW - pillW) / 2);
+    const pillY = y + Math.round((rowH - pillH) / 2);
+
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.75);
+    doc.roundedRect(pillX, pillY, pillW, pillH, 3, 3, 'FD');
+
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${pct}%`, pillX + pillW / 2, pillY + 12, { align: 'center' });
+
+    y += rowH;
   }
+  y += 6;
 
   // Quality score (if available) - plain text
   const noLegsDetected = !!data.visionAnalysis && data.visionAnalysis.total_legs_detected === 0;
