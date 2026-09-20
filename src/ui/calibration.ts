@@ -31,13 +31,16 @@ export function renderCalibrationTab(host: HTMLElement): void {
   body.appendChild(el('div', 'cal-note',
     'These settings affect how new board analyses are scored for display. They do not affect the AI\'s defect/cause diagnosis or historical case data.'));
 
+  const grid = el('div', 'cal-grid');
+  body.appendChild(grid);
+
   const group = (title: string, desc: string): HTMLElement => {
     const g = el('div', 'cal-group');
     const head = el('div', 'cal-group-head');
     head.appendChild(el('div', 'cal-title', title));
     head.appendChild(el('div', 'cal-desc', desc));
     g.appendChild(head);
-    body.appendChild(g);
+    grid.appendChild(g);
     return g;
   };
 

@@ -610,7 +610,10 @@ export function renderTroubleshoot(host: HTMLElement): void {
     // 2. session context from the (real) analysis
     appState.material = 'solder-paste';
     const boardClass = result?.board?.dominantDefect ?? 'less-paste';
-    addSymptoms(boardClassToSymptoms(boardClass) as SymptomId[]);
+    appState.symptoms.clear();
+    appState.emphasized?.clear();
+    // Benchmark challenge symptoms: inconsistent dot size + occasional + voids/bubbles + multi-location
+    addSymptoms(['inconsistent-size', 'occurrence-occasional', 'material-voids', 'multi-location']);
     if (result) {
       appState.lastImage = {
         label: result.label,
@@ -625,7 +628,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
       total: 12,
       most_common_cause: 'Air trapped in syringe / supply',
       message: 'Similar problems occurred 12 times. In 5 cases, the main cause was Air trapped in syringe / supply.',
-      defect_type: boardClass === 'bridging' ? 'Bridging' : 'Less Paste',
+      defect_type: 'Inconsistent Volume',
     };
 
     // 3. run the real rule engine locally (no Gemini call)
@@ -647,9 +650,9 @@ export function renderTroubleshoot(host: HTMLElement): void {
       conversationHistory.push({ role, content: text });
     };
     say('model', `Board analyzed. I see ${counts}. Has this been happening continuously, or only occasionally?`);
-    say('user', 'Occasionally, and it started after we switched to a new solder paste batch.');
+    say('user', 'Occasionally, and we notice tiny air bubbles or voids in the dispensing dots.');
     say('model', 'Got it. Is it concentrated in one area of the board, or spread across several locations?');
-    say('user', 'Mostly along one edge of the board.');
+    say('user', 'Across multiple locations along the edge of the board.');
     say('model', 'Understood. The diagnosis is ready on the left - review the ranked causes and the action plan.');
 
     // 5. reveal results and open the assistant so the transcript is visible
