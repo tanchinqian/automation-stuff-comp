@@ -290,18 +290,19 @@ label,
 
 .nav-tabs {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 .nav-tab {
   font-family: var(--mono);
-  font-size: 13px;
-  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
   color: var(--ink-dim);
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   border-radius: var(--r-3);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 .nav-tab:hover {
   color: var(--ink);
@@ -1045,19 +1046,19 @@ label,
 }
 .q-card .qlabel {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ink-faint);
   letter-spacing: 0.08em;
 }
 .q-card .stars {
-  font-size: 17px;
+  font-size: 19px;
   color: var(--data-viz-2);
   letter-spacing: 2px;
   margin: 6px 0;
 }
 .q-card .qval {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink-dim);
 }
 .q-hero {
@@ -1080,9 +1081,9 @@ label,
 }
 .q-hero .score-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--ink-dim);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
 }
 
 /* vision */
@@ -1105,10 +1106,10 @@ label,
 }
 .scene-chip {
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 5px 8px;
+  padding: 6px 10px;
   border-radius: 2px;
   border: 1px solid var(--line);
   background: var(--bg-3);
@@ -1139,10 +1140,10 @@ label,
 }
 .overlay-legend {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12.5px;
   color: var(--ink-faint);
   margin-top: 8px;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 .legend-dot {
   display: inline-block;
@@ -1166,13 +1167,13 @@ label,
 }
 .metric .k {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--ink-faint);
   letter-spacing: 0.06em;
 }
 .metric .v {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 15px;
   color: var(--ink);
   margin-top: 2px;
 }
@@ -1187,7 +1188,7 @@ label,
 }
 .vision-filter-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ink-faint);
   letter-spacing: 0.08em;
@@ -1196,8 +1197,8 @@ label,
 }
 .vision-filter-chip {
   font-family: var(--mono);
-  font-size: 12px;
-  padding: 4px 8px;
+  font-size: 13px;
+  padding: 5px 10px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -1234,11 +1235,11 @@ label,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 12px;
+  padding: 8px 14px;
   background: var(--bg-3);
   border-bottom: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--ink);
 }
 .pad-inspector-head .title-tag {
@@ -1281,22 +1282,22 @@ label,
 }
 .pad-stat-label {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 11.5px;
   color: var(--ink-faint);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .pad-stat-value {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   margin-top: 1px;
 }
 .pad-inspector-standby {
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--ink-faint);
   display: flex;
   align-items: center;
@@ -1986,15 +1987,19 @@ label,
   align-items: flex-start;
 }
 .chat-row .btn {
-  /* keep the send label aligned with the first text line as the box grows */
-  padding-top: 12px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .chat-input {
   flex: 1;
   font-family: var(--mono);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.4;
   padding: 10px 12px;
+  min-height: 42px;
+  box-sizing: border-box;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -2014,6 +2019,9 @@ label,
 }
 .chat-input::placeholder {
   color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Case browser (Learning Database) ---------- */
@@ -2335,7 +2343,7 @@ label,
 }
 .report-progress-label {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -2353,7 +2361,20 @@ label,
   background: var(--data-viz-1);
   border-radius: var(--r-2);
 }
-.report-form { display: flex; flex-direction: column; gap: 10px; }
+.report-form { display: flex; flex-direction: column; gap: 12px; }
+.report-discipline-head {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  margin-top: 12px;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
 .report-field { display: flex; flex-direction: column; gap: 4px; }
 .seg {
   display: inline-flex;
@@ -2368,9 +2389,9 @@ label,
   border-radius: 0;
   background: transparent;
   color: var(--ink-dim);
-  padding: 7px 12px;
+  padding: 8px 14px;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 .seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
@@ -2379,14 +2400,14 @@ label,
 .ro-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--bg-2);
 }
-.ro-item { font-family: var(--mono); font-size: 13.5px; color: var(--ink); }
-.ro-empty { font-size: 13.5px; color: var(--ink-faint); }
+.ro-item { font-family: var(--mono); font-size: 14px; color: var(--ink); }
+.ro-empty { font-size: 14px; color: var(--ink-faint); }
 
 /* ---------- Workbench sub-tabs (Inspect & Diagnose / Report) ---------- */
 .subtabs {
@@ -2394,16 +2415,16 @@ label,
   top: var(--topbar-h, 56px);
   z-index: 90;
   display: flex;
-  gap: 2px;
+  gap: 4px;
   padding: 10px 20px 0;
   border-bottom: 1px solid var(--line);
   background: var(--bg-0);
 }
 .subtab {
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 8px 12px;
+  padding: 9px 14px;
   border: 0;
   background: transparent;
   color: var(--ink-dim);
@@ -2608,42 +2629,43 @@ label,
 
 /* ---------- Calibration Settings (Workbench > Calibration) ---------- */
 .cal-note {
-  padding: 10px 12px;
+  padding: 12px 14px;
   margin-bottom: 16px;
   border: 1px solid var(--line);
   background: var(--bg-2);
   border-radius: var(--r-4);
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink-dim);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .cal-group {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 .cal-group-head {
   margin-bottom: 8px;
 }
 .cal-title {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
 }
 .cal-desc {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-dim);
   margin-top: 2px;
+  line-height: 1.45;
 }
 .cal-row {
   display: grid;
-  grid-template-columns: 160px minmax(120px, 260px) 46px;
+  grid-template-columns: 180px minmax(120px, 260px) 52px;
   align-items: center;
-  gap: 10px;
-  padding: 4px 0;
+  gap: 12px;
+  padding: 6px 0;
 }
 .cal-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-dim);
 }
 .cal-range {
@@ -2652,7 +2674,7 @@ label,
 }
 .cal-value {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2661,11 +2683,11 @@ label,
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .cal-status {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--status-good);
 }
 .cal-status.warn {

@@ -266,16 +266,6 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   // ────────────────────────────────────────────────────────────────────────────
   drawHeader();
 
-  // ── Document title ──────────────────────────────────────────────────────────
-  doc.setFont(FONT, 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(...C.black);
-  doc.text('8D report', ML, y);
-  y += 10;
-
-  rule(0.8, C.black);
-  y += 14;
-
   // ── Metadata header row - clean 2-column table, no overlapping badge ──────
   // Left column: keys at col1X, values at col1X + 110
   // Right column: keys at col2X, values at col2X + 110

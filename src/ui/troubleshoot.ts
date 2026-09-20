@@ -511,7 +511,7 @@ export function renderTroubleshoot(host: HTMLElement): void {
   const inputRow = el('div', 'freetext-row chat-row');
   const input = el('textarea', 'chat-input') as HTMLTextAreaElement;
   input.rows = 1;
-  input.placeholder = 'Describe the problem in your own words…';
+  input.placeholder = 'Describe problem or symptoms…';
   input.setAttribute('aria-label', 'Describe the dispensing problem in your own words');
   input.setAttribute('autocomplete', 'off');
   // auto-expand as the user types (capped by max-height in CSS)
