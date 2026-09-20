@@ -48,13 +48,22 @@ jobs:
       - name: Wait for API & Models to Initialize
         run: |
           echo "Waiting for PasteTrace container to become healthy..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8000/health | grep -q "ok"; then
+          HEALTHY=0
+          for i in $(seq 1 40); do
+            RESPONSE=$(curl --silent --fail http://localhost:8000/health || true)
+            if echo "$RESPONSE" | grep -q "ok"; then
               echo "Server healthy on port 8000!"
+              HEALTHY=1
               break
             fi
-            sleep 2
+            echo "Waiting for server to start... ($i/40)"
+            sleep 3
           done
+          if [ $HEALTHY -ne 1 ]; then
+            echo "ERROR: Server failed to start within timeout"
+            docker compose logs pastetrace
+            exit 1
+          fi
 
       - name: Verify Health & API Endpoints
         run: |
