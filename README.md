@@ -1,8 +1,22 @@
 # PasteTrace
 
+[![CI Pipeline](https://github.com/tanchinqian/automation-stuff-comp/actions/workflows/ci.yml/badge.svg)](https://github.com/tanchinqian/automation-stuff-comp/actions/workflows/ci.yml)
+
 PasteTrace is an integrated troubleshooting console that turns a board inspection image into an explainable root-cause diagnosis, a step-by-step fix plan, and an exportable 8D report, learning from every case it closes.
 
-## Setup
+## Quick Start (Docker - Recommended for Evaluators)
+
+Run the entire application (frontend + FastAPI + vision models) in a single self-contained container with one command—no need to install Node.js, Python, or PyTorch:
+
+```bash
+docker compose up
+```
+
+Open **http://localhost:8000** in your browser. All API endpoints and the interactive console are ready.
+
+---
+
+## Manual Setup (Development)
 
 Requires Node 22+ and Python 3.11+ (the vision stack is tested on 3.13).
 
