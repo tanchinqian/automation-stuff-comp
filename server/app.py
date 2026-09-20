@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # make the repo root importable so `scripts.pipeline` resolves
@@ -837,6 +838,14 @@ def chat(req: ChatRequest):
             questions_asked=questions_asked,
             ready_for_diagnosis=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# Static frontend mounting (production / Docker)
+# ---------------------------------------------------------------------------
+DIST_DIR = ROOT / "dist"
+if DIST_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
