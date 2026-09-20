@@ -48,16 +48,21 @@ COPY pipeline_config.json* ./
 # Copy compiled frontend from Stage 1 into /app/dist
 COPY --from=frontend-builder /app/dist /app/dist
 
-# Expose port 8000
-EXPOSE 8000
+# Expose port 8000 (local) and 7860 (Hugging Face Spaces)
+EXPOSE 8000 7860
 
 # Set environment defaults
 ENV PYTHONUNBUFFERED=1 \
     PORT=8000
 
+# Set up non-root user for cloud security (Hugging Face Spaces compatibility)
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Start FastAPI pipeline server (serves both API and UI)
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI pipeline server (dynamically binds to $PORT)
+CMD ["sh", "-c", "uvicorn server.app:app --host 0.0.0.0 --port ${PORT}"]
