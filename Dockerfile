@@ -35,12 +35,14 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source & model weights
+# Create runtime directories for persistent cases and uploads
+RUN mkdir -p /app/cases /app/train_data/JPEGImages /app/train_data/Annotations /app/server/_uploads
+
+# Copy application source & model weights (tracked in Git)
 COPY server/ server/
 COPY scripts/ scripts/
 COPY models/ models/
-COPY cases/ cases/
-COPY train_data/ train_data/
+COPY public/ public/
 COPY pipeline_config.json* ./
 
 # Copy compiled frontend from Stage 1 into /app/dist
