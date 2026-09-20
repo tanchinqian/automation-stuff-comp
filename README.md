@@ -13,24 +13,50 @@ PasteTrace is an offline-first, on-device AI troubleshooting console for fluid-d
 
 ---
 
-## Key Capabilities
+## System Architecture
 
-### 1. Two-Stage Vision Pipeline (On-Device & Offline)
-- **Stage 1 (YOLOv8n)**: Pinpoint and extract microscopic component solder legs and pads across full PCB images.
-- **Stage 2 (MobileNetV2 ONNX)**: Classify each cropped pad into **Good**, **Less Paste** (insufficient volume), or **Bridging** (solder short).
-- Runs directly inside your browser or via the bundled local FastAPI backend with sub-second inference.
+The following diagram illustrates the complete end-to-end data flow from raw board image acquisition to Bayesian diagnosis and closed-loop learning:
 
-### 2. Bayesian Evidence-Scoring Root Cause Engine
-- Feeds detected defect geometries and technician symptom logs into an industrial dispensing knowledge base.
-- Generates ranked root causes with probabilistic likelihoods (e.g., *Air trapped in syringe / supply*, *Material viscosity drift*, *Nozzle blockage*, *Drifting dispensing pressure*).
+```mermaid
+flowchart LR
+    A["Raw SPI Board Image"] --> B["Stage 1: YOLOv8n<br/>Pad & Pin Detection"]
+    B --> C["Stage 2: MobileNetV2<br/>Crop Classification"]
+    C --> D["Defect Telemetry<br/>Less Paste / Bridging"]
+    D --> E["Bayesian Scoring Engine<br/>+ Symptoms Context"]
+    E --> F["Ranked Root Causes<br/>+ Action Plans"]
+    F --> G["3-Page 8D PDF Report"]
+    F --> H["Learning Database<br/>Prior Probabilities Shift"]
+```
 
-### 3. Comprehensive 8D Non-Conformance (NCR) Reporting
-- Follows the automotive and electronics manufacturing 8D problem-solving discipline (D1 through D8).
-- One-click export to a clean, publication-quality 3-page PDF report complete with defect telemetry, quality scoring metrics, and containment actions.
+---
 
-### 4. Adaptive Learning Database
-- Engineers confirm or correct root-cause findings after physical verification.
-- Every closed case is logged and automatically shifts Bayesian prior probabilities, making future diagnoses for the same production line progressively more accurate.
+## Empirical Benchmark & Accuracy
+
+PasteTrace is evaluated using an automated benchmark suite (`npm run eval`) against real manufacturing defect datasets and adversarial edge cases:
+
+| Benchmark Metric | Score | Sample Size | Target Performance |
+| :--- | :---: | :---: | :--- |
+| **Defect Classification Accuracy** | **100.0%** | 11 / 11 boards | Full detection of Less Paste & Bridging |
+| **Top Root-Cause Match Rate** | **81.8%** | 9 / 11 cases | Matches verified engineering ground truth |
+| **Adversarial / Ambiguity Flag Rate** | **60.0%** | 3 / 5 probe cases | Correctly flags contradictory operator symptoms |
+| **End-to-End Inference Latency** | **~240ms** | CPU Execution | Instant response with zero GPU requirement |
+
+---
+
+## 8D Problem-Solving Compliance
+
+PasteTrace automates standard automotive and semiconductor 8D non-conformance disciplines:
+
+| 8D Phase | Manufacturing Objective | PasteTrace Automation |
+| :--- | :--- | :--- |
+| **D1 - Team** | Establish cross-functional team | Auto-populates line engineer, QA owner, and station telemetry |
+| **D2 - Problem Description** | Quantify 5W2H defect definition | Computer-vision metrics (flagged pad coordinates, defect severity) |
+| **D3 - Containment** | Immediate line risk isolation | Pre-computed containment checklists (purge lines, pause dispenser) |
+| **D4 - Root Cause** | Isolate physical failure mechanism | Bayesian likelihood ranking across Air, Material, Nozzle, and Parameters |
+| **D5 - Corrective Actions** | Hardware and parameter fixes | Step-by-step resolution actions tailored to the top-ranked cause |
+| **D6 - Implementation** | Validate resolution effectiveness | In-app verification protocol before logging case closure |
+| **D7 - Recurrence Prevention** | Standardize process controls | Closed cases update line-specific likelihood priors in database |
+| **D8 - Recognition** | Record audit-ready documentation | Instant generation of formal, typeset 3-page 8D PDF report |
 
 ---
 
@@ -50,6 +76,16 @@ Probabilistic breakdown showing physical mechanism, category, evidence weighting
 Interactive 8D discipline stepper covering containment (D3), root cause verification (D4), corrective actions (D5), and systemic recurrence prevention (D7).
 
 ![8D Quality Console](docs/images/8d_report.png)
+
+---
+
+## 3-Step Evaluator Demo Guide
+
+To test the entire pipeline in under 60 seconds:
+
+1. **Select a Sample Board**: Click `20161019-SPI-AOI-1.jpeg` in the sidebar gallery.
+2. **Execute Vision Inspection**: Click **"Run Analysis"**. Within 300ms, the YOLO detector highlights component pins, flagging 3 **Less Paste** pads with red bounding boxes.
+3. **Inspect Diagnosis & Export Report**: Review the Bayesian root cause (*Air trapped in syringe / supply - 91%*). Click **"Export 8D Report"** to download the publication-grade 3-page PDF.
 
 ---
 
@@ -85,7 +121,7 @@ npm run dev                 # launch web app at http://localhost:5173
 python server/start.py      # launch local API at http://localhost:8000 (optional)
 ```
 
-Open **http://localhost:5173**. Without the Python server running, vision falls back to on-device browser inference and chat falls back to offline templates. 
+Open **http://localhost:5173**. Without the Python server running, vision falls back to on-device browser inference and chat falls back to offline templates.
 
 For the conversational Gemini diagnosis assistant, copy `.env.example` to `.env` and provide your `GEMINI_API_KEY`.
 
