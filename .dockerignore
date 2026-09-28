@@ -1,0 +1,30 @@
+# Git and CI
+.git
+.gitignore
+.github
+
+# Node / Frontend build artifacts
+node_modules
+dist
+.test.mjs
+eval/.eval.mjs
+
+# Python environment and caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+ENV
+env
+
+# Local agent & editor directories
+.agents
+.gemini
+.vscode
+.idea
+
+# Temporary uploads and outputs
+server/_uploads
+*.pdf

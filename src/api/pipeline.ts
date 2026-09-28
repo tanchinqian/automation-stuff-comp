@@ -8,7 +8,10 @@ import { CAUSES } from '../engine/knowledgeBase';
 import type { CauseId, DefectId } from '../engine/types';
 import type { CaseRecord } from '../db/caseDB';
 
-export const BASE_URL = 'http://localhost:8000';
+export const BASE_URL =
+  typeof window !== 'undefined' && window.location.port !== '5173'
+    ? ''
+    : 'http://localhost:8000';
 
 /** One detected + classified leg. */
 export interface LegResult {
