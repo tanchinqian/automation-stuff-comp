@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # make the repo root importable so `scripts.pipeline` resolves
@@ -84,6 +85,7 @@ async def lifespan(app: FastAPI):
     load_models()          # prints which YOLO + ONNX models were loaded
     MODELS_LOADED = True
     seed_case_log()        # create demo learning-database records if empty
+    ensure_sample_boards() # ensure demo boards exist if train_data is empty
     print(f"Models loaded. Serving on http://localhost:{PORT}")
     yield
     print("Server shutting down.")
@@ -270,6 +272,23 @@ def seed_case_log() -> None:
     if len(existing) == 0:
         save_cases(generate_seed_cases())
         print("INFO: case_log.json was empty, seeded with 20 demo records")
+
+
+def ensure_sample_boards() -> None:
+    """Ensure at least sample boards exist in TRAIN_IMG_DIR for demo analysis."""
+    TRAIN_IMG_DIR.mkdir(parents=True, exist_ok=True)
+    ANNOTATION_DIR.mkdir(parents=True, exist_ok=True)
+    if not any(TRAIN_IMG_DIR.glob("*.jp*g")):
+        import shutil
+        sample_sources = [ROOT / "public" / "boards", ROOT / "dist" / "boards"]
+        for src in sample_sources:
+            if src.exists():
+                for img in src.glob("*.jp*g"):
+                    dest = TRAIN_IMG_DIR / img.name
+                    if not dest.exists():
+                        shutil.copy2(img, dest)
+                print("INFO: Initialized sample boards from bundled assets")
+                break
 
 
 # ---------------------------------------------------------------------------
@@ -837,6 +856,14 @@ def chat(req: ChatRequest):
             questions_asked=questions_asked,
             ready_for_diagnosis=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# Static frontend mounting (production / Docker)
+# ---------------------------------------------------------------------------
+DIST_DIR = ROOT / "dist"
+if DIST_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":

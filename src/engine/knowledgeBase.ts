@@ -55,7 +55,7 @@ export const CAUSES: Record<CauseId, CauseInfo> = {
     name: 'Air trapped in syringe / supply',
     category: 'Air',
     prior: 0.35,
-    description: 'Air pockets inside the syringe or supply line compress before dispensing, causing intermittent under-fill or missed dots.',
+    description: 'Air pockets inside the syringe or supply line compress before dispensing, causing intermittent under-fill or missing dots.',
   },
   'nozzle-blockage': {
     id: 'nozzle-blockage',

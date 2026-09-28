@@ -1,0 +1,17 @@
+services:
+  pastetrace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pastetrace:latest
+    container_name: pastetrace-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the learning database on host machine
+      - ./cases:/app/cases
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.1-flash-lite}
+      - PORT=8000

@@ -10,7 +10,7 @@ Guidance for AI agents working on this repository. Read this before making any c
 - Product truth: read `PRODUCT.md`.
 - Design system (the canonical visual authority): read `DESIGN.md` and `.impeccable/design.json`.
 - NLU: free-text is parsed locally (Chrome Gemini Nano -> on-device model -> embedded keyword engine) to feed the rule engine. Conversational diagnosis chat is served by the local `server/` via the Gemini API (`POST /chat`); if it is unavailable the UI falls back to offline templates.
-- Vision: the local pipeline server runs a YOLOv8s leg detector then a MobileNetV2 crop classifier (`models/leg_classifier.onnx`). If the server is unreachable the browser falls back to on-device YOLOv8s (ONNX via onnxruntime-web) or classical per-pad CV.
+- Vision: the local pipeline server runs a YOLOv8n leg detector then a MobileNetV2 crop classifier (`models/leg_classifier.onnx`). If the server is unreachable the browser falls back to on-device YOLOv8n (ONNX via onnxruntime-web) or classical per-pad CV.
 - Architecture map:
   - `src/engine/` knowledge base, evidence scoring, question flow, action plan
   - `src/vision/` in-browser computer-vision fallback (classical + `yoloDetector.ts`) + quality score
@@ -20,7 +20,7 @@ Guidance for AI agents working on this repository. Read this before making any c
   - `src/ui/` UI modules (workbench, learning DB, report)
   - `src/api/` typed client for the local pipeline server
   - `server/` FastAPI pipeline API (`/analyze`, `/boards`, `/cases`)
-  - `public/models/` bundled YOLOv8s ONNX + classes (ships in repo)
+  - `public/models/` bundled YOLOv8n ONNX + classes (ships in repo)
 
 ## Commands
 

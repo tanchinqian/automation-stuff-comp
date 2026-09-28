@@ -149,14 +149,74 @@ export function reportDataSnapshot(): CaseReportData | null {
 }
 
 // ---------------------------------------------------------------------------
+// Stages Configuration
+// ---------------------------------------------------------------------------
+const STAGES = [
+  { id: 'd1', code: 'D1', name: 'Individual', title: 'D1 · Individual & Team' },
+  { id: 'd2', code: 'D2', name: 'Problem Description', title: 'D2 · Problem Description & Inspection Telemetry' },
+  { id: 'd3', code: 'D3', name: 'Containment', title: 'D3 · Immediate Containment Action' },
+  { id: 'd4', code: 'D4', name: 'Root Cause', title: 'D4 · Root Cause Verification' },
+  { id: 'd5', code: 'D5', name: 'Planned PCA', title: 'D5 · Planned Corrective Action' },
+  { id: 'd6', code: 'D6', name: 'Permanent PCA', title: 'D6 · Permanent Corrective Action' },
+  { id: 'd7', code: 'D7', name: 'Process Notes', title: 'D7 · Process Note / Lessons Learned' },
+  { id: 'd8', code: 'D8', name: 'Sign-off', title: 'D8 · Close Report & Sign-off' },
+] as const;
+
+function getStageCompletion(stageId: string, form: ReportFormData): 'completed' | 'progress' | 'pending' {
+  switch (stageId) {
+    case 'd1':
+      if (form.employeeName.trim() && form.employeeId.trim()) return 'completed';
+      if (form.employeeName.trim() || form.employeeId.trim()) return 'progress';
+      return 'pending';
+    case 'd2':
+      if (form.machineId.trim() && form.affectedCount.trim()) return 'completed';
+      if (form.machineId.trim() || form.affectedCount.trim()) return 'progress';
+      return 'pending';
+    case 'd3':
+      if (form.d3Status === 'Completed' || (form.d3Status && form.d3Action.trim())) return 'completed';
+      if (form.d3Status || form.d3Action.trim() || form.d3CompletedBy.trim()) return 'progress';
+      return 'pending';
+    case 'd4':
+      if (form.d4Status === 'Confirmed' || (form.d4Status && form.d4Method.trim())) return 'completed';
+      if (form.d4Status || form.d4Method.trim()) return 'progress';
+      return 'pending';
+    case 'd5':
+      if (form.d5Status === 'Completed' || (form.d5Status && form.d5Responsible.trim())) return 'completed';
+      if (form.d5Status || form.d5TargetDate || form.d5Responsible.trim()) return 'progress';
+      return 'pending';
+    case 'd6':
+      if (form.d6Status === 'Implemented' && form.d6Verified) return 'completed';
+      if (form.d6Status || form.d6Action.trim() || form.d6Verified) return 'progress';
+      return 'pending';
+    case 'd7':
+      if (form.d7Notes.trim().length >= 8) return 'completed';
+      if (form.d7Notes.trim()) return 'progress';
+      return 'pending';
+    case 'd8':
+      if (form.confirmedCause.trim() && form.closedBy.trim()) return 'completed';
+      if (form.confirmedCause.trim() || form.closedBy.trim()) return 'progress';
+      return 'pending';
+    default:
+      return 'pending';
+  }
+}
+
+let activeReportScrollCleanup: (() => void) | null = null;
+
+// ---------------------------------------------------------------------------
 // Tab renderer
 // ---------------------------------------------------------------------------
 export function renderReportTab(host: HTMLElement): void {
+  if (activeReportScrollCleanup) {
+    activeReportScrollCleanup();
+    activeReportScrollCleanup = null;
+  }
   clear(host);
   const layout = el('div', 'layout');
   host.appendChild(layout);
 
-  const p = panel('8D Dispensing Defect Report');
+  const p = panel('8D Dispensing Quality & NCR Console');
+  p.classList.add('report-panel');
   const body = p.querySelector('.panel-body')! as HTMLElement;
   layout.appendChild(p);
 
@@ -168,44 +228,108 @@ export function renderReportTab(host: HTMLElement): void {
   let form = reportForm;
   const setForm = (next: ReportFormData): void => { reportForm = next; form = next; };
 
-  // Source header
-  const sourceBox = el('div', 'report-source');
-  body.appendChild(sourceBox);
+  // Console layout grid
+  const consoleLayout = el('div', 'report-console-layout');
+  body.appendChild(consoleLayout);
 
-  // Similar-cases one-line summary (Change 3)
+  // Left sticky sidebar
+  const sidebar = el('div', 'report-sidebar');
+  consoleLayout.appendChild(sidebar);
+
+  // Source selector box
+  const sourceBox = el('div', 'report-source');
+  sidebar.appendChild(sourceBox);
+
+  // Similar-cases one-line summary
   const similarLine = el('div', 'case-count');
-  body.appendChild(similarLine);
+  sourceBox.appendChild(similarLine);
   similarLine.textContent = 'Loading historical summary...';
 
-  // Completeness indicator (Change 5)
-  const progressWrap = el('div', 'report-progress');
-  const progressLabel = el('span', 'report-progress-label', 'Report completeness: 0%');
-  const progressTrack = el('div', 'report-progress-track');
-  const progressFill = el('div', 'report-progress-fill');
-  progressTrack.appendChild(progressFill);
-  progressWrap.appendChild(progressLabel);
-  progressWrap.appendChild(progressTrack);
-  body.appendChild(progressWrap);
+  // Stepper navigation in sidebar
+  const stepperPanel = el('div', 'report-sidebar-panel');
+  const stepperHead = el('div', 'report-stepper-head');
+  stepperHead.appendChild(el('span', 'report-stepper-title', '8D Stage Stepper'));
+  const stepperCount = el('span', 'report-stepper-count', '0/8 Done');
+  stepperHead.appendChild(stepperCount);
+  stepperPanel.appendChild(stepperHead);
 
-  // Form fields container (rebuilt when the source changes)
-  const formHost = el('div', 'report-form');
-  body.appendChild(formHost);
+  const setActiveStage = (stageId: string) => {
+    sidebar.querySelectorAll('.report-nav-item').forEach((item) => {
+      item.classList.toggle('active', item.getAttribute('data-nav-stage') === stageId);
+    });
+  };
 
-  // Actions
-  const row = el('div', 'freetext-row');
-  const fillBtn = button('Fill sample', 'btn ghost', fillSampleReport);
-  const saveDetailsBtn = button('Save report details', 'btn ghost', () => { void saveReportDetails(); });
-  const downloadBtn = button('Download Report', 'btn primary');
-  const backBtn = button('Back to diagnosis', 'btn ghost', () => switchWorkbenchView('inspect'));
-  row.appendChild(fillBtn);
-  row.appendChild(saveDetailsBtn);
-  row.appendChild(downloadBtn);
-  row.appendChild(backBtn);
-  body.appendChild(row);
+  let isClickScrolling = false;
+  let clickScrollTimeout: number | undefined;
 
-  const reportStatus = el('div', 'case-note');
+  const navList = el('div', 'report-nav-list');
+  for (const stage of STAGES) {
+    const navBtn = el('button', 'report-nav-item') as HTMLButtonElement;
+    navBtn.type = 'button';
+    navBtn.setAttribute('data-nav-stage', stage.id);
+    navBtn.appendChild(el('span', 'nav-step-code', stage.code));
+    navBtn.appendChild(el('span', 'nav-step-name', stage.name));
+    const statusIcon = el('span', 'nav-step-status pending', '·');
+    navBtn.appendChild(statusIcon);
+    navBtn.onclick = (e) => {
+      e.preventDefault();
+      const target = document.getElementById(`card-${stage.id}`);
+      if (target) {
+        isClickScrolling = true;
+        window.clearTimeout(clickScrollTimeout);
+        clickScrollTimeout = window.setTimeout(() => {
+          isClickScrolling = false;
+        }, 800);
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActiveStage(stage.id);
+      }
+    };
+    navList.appendChild(navBtn);
+  }
+  stepperPanel.appendChild(navList);
+
+  // Sidebar completeness indicator
+  const sidebarProgressWrap = el('div', 'report-progress');
+  const sidebarProgressLabel = el('span', 'report-progress-label', 'Completeness: 0%');
+  const sidebarProgressTrack = el('div', 'report-progress-track');
+  const sidebarProgressFill = el('div', 'report-progress-fill');
+  sidebarProgressTrack.appendChild(sidebarProgressFill);
+  sidebarProgressWrap.appendChild(sidebarProgressLabel);
+  sidebarProgressWrap.appendChild(sidebarProgressTrack);
+  stepperPanel.appendChild(sidebarProgressWrap);
+  sidebar.appendChild(stepperPanel);
+
+  // Main stage container
+  const mainHost = el('div', 'report-main');
+  consoleLayout.appendChild(mainHost);
+
+  // Fixed sticky bottom status & action bar
+  const bottomBar = el('div', 'report-bottom-bar');
+  const bottomStatus = el('div', 'bottom-bar-status');
+  const bottomProgressLabel = el('span', 'report-progress-label', '8D Completeness: 0% [0/8 Stages Complete]');
+  const bottomProgressTrack = el('div', 'report-progress-track');
+  const bottomProgressFill = el('div', 'report-progress-fill');
+  bottomProgressTrack.appendChild(bottomProgressFill);
+  bottomStatus.appendChild(bottomProgressLabel);
+  bottomStatus.appendChild(bottomProgressTrack);
+
+  const reportStatus = el('span', 'case-note');
   reportStatus.hidden = true;
-  body.appendChild(reportStatus);
+  bottomStatus.appendChild(reportStatus);
+  bottomBar.appendChild(bottomStatus);
+
+  const bottomActions = el('div', 'bottom-bar-actions');
+  const fillBtn = button('Fill sample', 'btn ghost sm', fillSampleReport);
+  const saveDetailsBtn = button('Save report details', 'btn ghost sm', () => { void saveReportDetails(); });
+  const downloadBtn = button('Download Report', 'btn primary');
+  const backBtn = button('Back to diagnosis', 'btn ghost sm', () => switchWorkbenchView('inspect'));
+  bottomActions.appendChild(fillBtn);
+  bottomActions.appendChild(saveDetailsBtn);
+  bottomActions.appendChild(downloadBtn);
+  bottomActions.appendChild(backBtn);
+  bottomBar.appendChild(bottomActions);
+
+  body.appendChild(bottomBar);
 
   let statusTimer: number | undefined;
   const setStatus = (text: string, warn = false): void => {
@@ -226,10 +350,10 @@ export function renderReportTab(host: HTMLElement): void {
         diagnosis: appState.lastDiagnosis,
         actions: appState.lastActions ?? [],
         quality: appState.lastImage?.quality,
-        imageLabel: appState.lastImage?.label,
+        imageLabel: appState.lastImage?.label ?? 'Figure 1: Automated Solder Paste Inspection (SPI) Anomaly Crop - Pad Cluster B_SMT5C',
         imageUrl: appState.lastImage?.imageUrl,
         imageFormat: appState.lastImage?.imageUrl ? 'PNG' : undefined,
-        engineLabel: 'Gemini API (chat) + YOLOv8n + MobileNetV2 (vision)',
+        engineLabel: 'Gemini 1.5 Pro + YOLOv8n + MobileNetV2',
         reportId: appState.reportId,
         containmentVerified: false,
         rootCauseVerified: false,
@@ -265,7 +389,7 @@ export function renderReportTab(host: HTMLElement): void {
       engineerNotes: form.d7Notes || undefined,
       confirmedCause: form.confirmedCause || base.confirmedCause,
       closedBy: form.closedBy || undefined,
-      closedDate: form.closedDate || undefined,
+      closedDate: form.closedDate || (form.closedBy ? new Date().toISOString().slice(0, 10) : undefined),
       d3Status: form.d3Status || undefined,
       d3Action: form.d3Action || undefined,
       d3CompletedBy: form.d3CompletedBy || undefined,
@@ -287,8 +411,36 @@ export function renderReportTab(host: HTMLElement): void {
   const updateProgress = () => {
     const filled = REQUIRED_FIELDS.filter((k) => String(form[k]).trim() !== '').length;
     const pct = Math.round((filled / REQUIRED_FIELDS.length) * 100);
-    progressLabel.textContent = `Report completeness: ${pct}%`;
-    progressFill.style.width = `${pct}%`;
+
+    let doneCount = 0;
+    for (const stage of STAGES) {
+      const st = getStageCompletion(stage.id, form);
+      if (st === 'completed') doneCount++;
+
+      // update card header status badge
+      const badge = mainHost.querySelector<HTMLElement>(`[data-stage-status="${stage.id}"]`);
+      if (badge) {
+        badge.className = `stage-status-badge ${st}`;
+        badge.textContent = st === 'completed' ? 'COMPLETED' : st === 'progress' ? 'IN PROGRESS' : 'PENDING';
+      }
+
+      // update sidebar nav item
+      const navItem = sidebar.querySelector<HTMLElement>(`[data-nav-stage="${stage.id}"]`);
+      if (navItem) {
+        const icon = navItem.querySelector<HTMLElement>('.nav-step-status');
+        if (icon) {
+          icon.className = `nav-step-status ${st === 'completed' ? 'done' : st === 'progress' ? 'wip' : 'pending'}`;
+          icon.textContent = st === 'completed' ? '✓' : st === 'progress' ? '•' : '·';
+        }
+      }
+    }
+
+    stepperCount.textContent = `${doneCount}/8 Done (${pct}%)`;
+    sidebarProgressLabel.textContent = `Completeness: ${pct}%`;
+    sidebarProgressFill.style.width = `${pct}%`;
+
+    bottomProgressLabel.textContent = `8D Completeness: ${pct}% [${doneCount}/8 Stages Complete]`;
+    bottomProgressFill.style.width = `${pct}%`;
   };
 
   const refreshActionsEnabled = () => {
@@ -301,8 +453,6 @@ export function renderReportTab(host: HTMLElement): void {
     if (useCurrent || !selectedCase) return;
     const rd = selectedCase.reportData;
     if (rd) {
-      // the case carries its own saved report fields - these win over the
-      // browser's localStorage defaults, which are for new reports only
       form.employeeName = rd.employeeName ?? '';
       form.employeeId = rd.employeeId ?? '';
       form.machineId = rd.machineId ?? '';
@@ -326,7 +476,6 @@ export function renderReportTab(host: HTMLElement): void {
       form.closedDate = rd.closedDate ?? '';
       return;
     }
-    // legacy records (no report_data): degrade to today's behaviour
     form.d7Notes = selectedCase.notes ?? '';
     form.confirmedCause = selectedCase.resolvedCause ? humanize(selectedCase.resolvedCause) : '';
   };
@@ -334,6 +483,13 @@ export function renderReportTab(host: HTMLElement): void {
   // ------------------------------------------------------------------
   // Field builders
   // ------------------------------------------------------------------
+  const row2 = (col1: HTMLElement, col2: HTMLElement): HTMLElement => {
+    const r = el('div', 'report-grid-2');
+    r.appendChild(col1);
+    r.appendChild(col2);
+    return r;
+  };
+
   const field = (
     label: string, key: keyof ReportFormData,
     opts: { placeholder?: string; type?: string; label2?: string } = {},
@@ -373,23 +529,30 @@ export function renderReportTab(host: HTMLElement): void {
     wrap.appendChild(el('div', 'question-label', label));
     const grp = el('div', 'seg');
     const btns: HTMLButtonElement[] = [];
+    const updateSelection = () => {
+      btns.forEach((b) => {
+        const isSelected = b.textContent === form[key];
+        b.classList.toggle('active', isSelected);
+        const isResolved = ['Completed', 'Confirmed', 'Implemented', 'Yes'].includes(b.textContent || '');
+        b.classList.toggle('resolved', isSelected && isResolved);
+      });
+    };
     const select = (val: string) => {
       form[key] = val;
-      btns.forEach((b) => b.classList.toggle('active', b.textContent === val));
+      updateSelection();
       if (key === 'd3Status' && val === 'Completed' && !form.d3CompletedAt) {
         form.d3CompletedAt = nowLocalDatetime();
-        const at = formHost.querySelector<HTMLInputElement>('input[data-key="d3CompletedAt"]');
+        const at = mainHost.querySelector<HTMLInputElement>('input[data-key="d3CompletedAt"]');
         if (at) at.value = form.d3CompletedAt;
       }
       updateProgress();
     };
     for (const opt of options) {
       const b = button(opt, 'seg-btn', () => select(opt));
-      if (form[key] === opt) b.classList.add('active');
       btns.push(b);
       grp.appendChild(b);
     }
-    // allow external code to highlight the initial value
+    updateSelection();
     wrap.appendChild(grp);
     return wrap;
   };
@@ -398,21 +561,152 @@ export function renderReportTab(host: HTMLElement): void {
     const wrap = el('div', 'report-field');
     wrap.appendChild(el('div', 'question-label', label));
     const list = el('div', 'ro-list');
-    if (!values.length) list.appendChild(el('div', 'ro-empty', 'Not recorded'));
-    values.forEach((v, i) => list.appendChild(el('div', 'ro-item', `${i + 1}. ${v}`)));
+    if (!values.length) {
+      list.classList.add('empty');
+      list.appendChild(el('div', 'ro-empty', 'No recorded diagnostic steps'));
+    } else {
+      values.forEach((v, i) => list.appendChild(el('div', 'ro-item', `${i + 1}. ${v}`)));
+    }
     wrap.appendChild(list);
     return wrap;
+  };
+
+  const createStageCard = (
+    stage: typeof STAGES[number],
+    content: HTMLElement[],
+  ): HTMLElement => {
+    const card = el('div', 'report-card');
+    card.id = `card-${stage.id}`;
+
+    const head = el('div', 'report-card-head');
+    const titleGroup = el('div', 'card-title-group');
+    titleGroup.appendChild(el('span', 'stage-badge', stage.code));
+    titleGroup.appendChild(el('span', 'stage-title', stage.title));
+    head.appendChild(titleGroup);
+
+    const statusBadge = el('span', 'stage-status-badge pending', 'PENDING');
+    statusBadge.setAttribute('data-stage-status', stage.id);
+    head.appendChild(statusBadge);
+    card.appendChild(head);
+
+    const cardBody = el('div', 'report-card-body');
+    for (const c of content) {
+      cardBody.appendChild(c);
+    }
+    card.appendChild(cardBody);
+    return card;
+  };
+
+  const renderTelemetryBadge = (base: ReportData): HTMLElement => {
+    const card = el('div', 'telemetry-badge-card');
+    const head = el('div', 'telemetry-head');
+    head.appendChild(el('span', '', 'OPTICAL INSPECTION TELEMETRY · SPI DEFECT MATRIX'));
+    card.appendChild(head);
+
+    const isPass = base.visionAnalysis
+      ? base.visionAnalysis.board_verdict.toLowerCase() === 'pass'
+      : (base.diagnosis.defect.defectName.toLowerCase() === 'good');
+
+    const tBody = el('div', 'telemetry-body');
+    const primaryRow = el('div', 'telemetry-primary-row');
+    const defectGroup = el('div', 'telemetry-defect-name');
+    defectGroup.appendChild(el('span', '', base.diagnosis.defect.defectName));
+    const verdictBadge = el(
+      'span',
+      `telemetry-tag ${isPass ? 'good' : 'fail'}`,
+      isPass ? '[ BOARD PASS ]' : '[ DEFECT DETECTED ]',
+    );
+    defectGroup.appendChild(verdictBadge);
+    primaryRow.appendChild(defectGroup);
+
+    tBody.appendChild(primaryRow);
+
+    const grid = el('div', 'telemetry-metrics-grid');
+    const addMetric = (label: string, val: string) => {
+      const tile = el('div', 'telemetry-metric-tile');
+      tile.appendChild(el('span', 'metric-tile-lbl', label));
+      tile.appendChild(el('span', 'metric-tile-val', val));
+      grid.appendChild(tile);
+    };
+
+    const va = base.visionAnalysis;
+    const verdictText = va ? va.board_verdict.toUpperCase() : (isPass ? 'PASS' : 'FAIL');
+    addMetric('SPI Verdict', verdictText);
+
+    if (va && va.defect_summary) {
+      const ds = va.defect_summary;
+      addMetric('Defect Matrix', `${ds['Less Paste']} Less · ${ds.Bridging} Bridge · ${ds.Good} Good`);
+      const badPads = ds['Less Paste'] + ds.Bridging;
+      const totalPads = badPads + ds.Good;
+      const rate = totalPads > 0 ? Math.round((badPads / totalPads) * 100) : 0;
+      addMetric('Defect Ratio', `${badPads} / ${totalPads} pads (${rate}%)`);
+    } else {
+      addMetric('Defect Type', base.diagnosis.defect.defectName);
+      addMetric('Severity', base.diagnosis.defect.defectConfidence > 0.7 ? 'CRITICAL' : 'MODERATE');
+    }
+
+    addMetric('Detection Engine', 'YOLOv8n + MobileNetV2');
+    tBody.appendChild(grid);
+    card.appendChild(tBody);
+    return card;
+  };
+
+  // Scroll and focal-line stage tracker
+  let scrollRaf = 0;
+  const updateActiveStage = () => {
+    if (isClickScrolling) return;
+    const cards = Array.from(mainHost.querySelectorAll<HTMLElement>('.report-card'));
+    if (!cards.length) return;
+
+    // If scrolled to the bottom of the page/container, activate the last card (D8)
+    const scrollBottom = window.innerHeight + window.scrollY;
+    const docHeight = document.documentElement.scrollHeight;
+    if (scrollBottom >= docHeight - 48) {
+      const lastCard = cards[cards.length - 1];
+      setActiveStage(lastCard.id.replace('card-', ''));
+      return;
+    }
+
+    // Focal line: where the reader's eye rests (~32% down from viewport top)
+    const focalY = Math.max(120, window.innerHeight * 0.32);
+
+    let activeId = cards[0].id.replace('card-', '');
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      if (rect.top <= focalY && rect.bottom > 80) {
+        activeId = card.id.replace('card-', '');
+      }
+    }
+    setActiveStage(activeId);
+  };
+
+  const onScroll = () => {
+    if (!host.isConnected) {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      return;
+    }
+    if (scrollRaf) cancelAnimationFrame(scrollRaf);
+    scrollRaf = requestAnimationFrame(updateActiveStage);
+  };
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+
+  activeReportScrollCleanup = () => {
+    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onScroll);
   };
 
   // ------------------------------------------------------------------
   // Form rendering (rebuilt on source change)
   // ------------------------------------------------------------------
   const buildForm = () => {
-    clear(formHost);
+    clear(mainHost);
     const base = sourceBase();
 
     if (!base) {
-      formHost.appendChild(el('div', 'case-empty', 'No diagnosis available. Analyze a board first, or select a past case.'));
+      mainHost.appendChild(el('div', 'case-empty', 'No diagnosis available. Analyze a board first, or select a past case.'));
       refreshActionsEnabled();
       updateProgress();
       return;
@@ -422,62 +716,84 @@ export function renderReportTab(host: HTMLElement): void {
     const actions = base.actions;
 
     // D1
-    formHost.appendChild(el('div', 'question-label', 'D1 - Individual'));
-    formHost.appendChild(field('Employee name', 'employeeName', { placeholder: 'Employee name' }));
-    formHost.appendChild(field('Employee ID', 'employeeId', { placeholder: 'Employee ID' }));
+    const d1Card = createStageCard(STAGES[0], [
+      row2(
+        field('Employee name', 'employeeName', { placeholder: 'Lead Engineer / Technician' }),
+        field('Employee ID', 'employeeId', { placeholder: 'e.g. E-2048' }),
+      ),
+    ]);
+    mainHost.appendChild(d1Card);
 
     // D2
-    formHost.appendChild(el('div', 'question-label', 'D2 - Problem description'));
-    formHost.appendChild(field('Machine / line', 'machineId', { placeholder: 'Machine / Line ID (e.g. Dispenser A3)' }));
-    formHost.appendChild(field('Affected units', 'affectedCount', { placeholder: 'Affected unit count (e.g. 12 of 100 boards)' }));
-    const summary = el('div', 'ro-list');
-    summary.appendChild(el('div', 'ro-item', `Defect type: ${base.diagnosis.defect.defectName}`));
-    if (base.visionAnalysis) {
-      summary.appendChild(el('div', 'ro-item',
-        `Board result: ${base.visionAnalysis.board_verdict} - ${base.visionAnalysis.defect_summary['Less Paste']} Less Paste - ${base.visionAnalysis.defect_summary.Bridging} Bridging - ${base.visionAnalysis.defect_summary.Good} Good`));
-    }
-    formHost.appendChild(summary);
+    const d2Inputs = row2(
+      field('Machine / line', 'machineId', { placeholder: 'Machine / Line ID (e.g. Dispenser A3)' }),
+      field('Affected units', 'affectedCount', { placeholder: 'Affected unit count (e.g. 12 of 100 boards)' }),
+    );
+    const d2Telemetry = renderTelemetryBadge(base);
+    const d2Card = createStageCard(STAGES[1], [d2Inputs, d2Telemetry]);
+    mainHost.appendChild(d2Card);
 
     // D3
-    formHost.appendChild(el('div', 'question-label', 'D3 - Immediate containment action'));
-    formHost.appendChild(readOnly('Containment steps', actions.slice(0, 2).map((a) => a.title)));
-    formHost.appendChild(segmented('Status', 'd3Status', D3_OPTIONS));
-    formHost.appendChild(textareaField('Action taken', 'd3Action', 'Describe the immediate action taken to contain the issue...'));
-    formHost.appendChild(field('Completed by', 'd3CompletedBy', { placeholder: 'Name' }));
     const atField = field('Completed at', 'd3CompletedAt', { type: 'datetime-local' });
     atField.querySelector('input')!.setAttribute('data-key', 'd3CompletedAt');
-    formHost.appendChild(atField);
+    const d3Card = createStageCard(STAGES[2], [
+      readOnly('Containment steps', actions.slice(0, 2).map((a) => a.title)),
+      segmented('Status', 'd3Status', D3_OPTIONS),
+      textareaField('Action taken', 'd3Action', 'Describe the immediate action taken to contain the issue...'),
+      row2(
+        field('Completed by', 'd3CompletedBy', { placeholder: 'Name' }),
+        atField,
+      ),
+    ]);
+    mainHost.appendChild(d3Card);
 
     // D4
-    formHost.appendChild(el('div', 'question-label', 'D4 - Root cause verification'));
-    formHost.appendChild(readOnly('Ranked causes', causes.slice(0, 5).map((c) => `${c.name} - ${Math.round(c.score * 100)}%`)));
-    formHost.appendChild(segmented('Status', 'd4Status', D4_OPTIONS));
-    formHost.appendChild(field('Verification method', 'd4Method', { placeholder: 'How was the root cause verified? e.g. test shots confirmed...' }));
+    const d4Card = createStageCard(STAGES[3], [
+      readOnly('Ranked causes', causes.slice(0, 5).map((c) => `${c.name} - ${Math.round(c.score * 100)}%`)),
+      segmented('Status', 'd4Status', D4_OPTIONS),
+      field('Verification method', 'd4Method', { placeholder: 'How was the root cause verified? e.g. test shots confirmed...' }),
+    ]);
+    mainHost.appendChild(d4Card);
 
     // D5
-    formHost.appendChild(el('div', 'question-label', 'D5 - Planned corrective action'));
-    formHost.appendChild(readOnly('Action plan', actions.slice(2).map((a) => a.title)));
-    formHost.appendChild(segmented('Implementation status', 'd5Status', D5_OPTIONS));
-    formHost.appendChild(field('Target date', 'd5TargetDate', { type: 'date' }));
-    formHost.appendChild(field('Responsible person', 'd5Responsible', { placeholder: 'Name' }));
+    const d5Card = createStageCard(STAGES[4], [
+      readOnly('Action plan', actions.slice(2).map((a) => a.title)),
+      segmented('Implementation status', 'd5Status', D5_OPTIONS),
+      row2(
+        field('Target date', 'd5TargetDate', { type: 'date' }),
+        field('Responsible person', 'd5Responsible', { placeholder: 'Name' }),
+      ),
+    ]);
+    mainHost.appendChild(d5Card);
 
     // D6
-    formHost.appendChild(el('div', 'question-label', 'D6 - Permanent corrective action'));
-    formHost.appendChild(textareaField('Action description', 'd6Action', 'Describe the permanent fix implemented...'));
-    formHost.appendChild(segmented('Status', 'd6Status', D6_STATUS_OPTIONS));
-    formHost.appendChild(segmented('Verified effective', 'd6Verified', D6_VERIFIED_OPTIONS));
+    const d6Card = createStageCard(STAGES[5], [
+      textareaField('Action description', 'd6Action', 'Describe the permanent fix implemented...'),
+      row2(
+        segmented('Status', 'd6Status', D6_STATUS_OPTIONS),
+        segmented('Verified effective', 'd6Verified', D6_VERIFIED_OPTIONS),
+      ),
+    ]);
+    mainHost.appendChild(d6Card);
 
     // D7
-    formHost.appendChild(el('div', 'question-label', 'D7 - Process note / lessons learned'));
-    formHost.appendChild(textareaField('Notes', 'd7Notes', 'Describe any SOP changes, parameter adjustments, or preventive actions taken...'));
+    const d7Card = createStageCard(STAGES[6], [
+      textareaField('Notes', 'd7Notes', 'Describe any SOP changes, parameter adjustments, or preventive actions taken...'),
+    ]);
+    mainHost.appendChild(d7Card);
 
     // D8
-    formHost.appendChild(el('div', 'question-label', 'D8 - Close report'));
-    formHost.appendChild(field('Confirmed cause', 'confirmedCause', { placeholder: 'What actually fixed it?' }));
-    formHost.appendChild(field('Operator name', 'closedBy', { placeholder: 'Operator name for sign-off' }));
+    const d8Card = createStageCard(STAGES[7], [
+      row2(
+        field('Confirmed cause', 'confirmedCause', { placeholder: 'What actually fixed it?' }),
+        field('Operator name', 'closedBy', { placeholder: 'Operator name for sign-off' }),
+      ),
+    ]);
+    mainHost.appendChild(d8Card);
 
     updateProgress();
     refreshActionsEnabled();
+    updateActiveStage();
   };
 
   // ------------------------------------------------------------------
@@ -521,7 +837,7 @@ export function renderReportTab(host: HTMLElement): void {
     } else {
       select.innerHTML = allCases.map((c, i) => {
         const cause = c.resolvedCause ? `✓ ${humanize(c.resolvedCause)}` : 'open';
-        return `<option value="${i}">${c.idLabel} - ${fmtDate(c.timestamp)} - ${c.defectLabel ?? 'Unknown'} - ${cause}</option>`;
+        return `<option value="${i}">${c.idLabel} · ${fmtDate(c.timestamp)} · ${c.defectLabel ?? 'Unknown'} · ${cause}</option>`;
       }).join('');
       const idx = selectedCase ? allCases.indexOf(selectedCase) : 0;
       select.value = String(idx >= 0 ? idx : 0);
@@ -538,6 +854,7 @@ export function renderReportTab(host: HTMLElement): void {
     });
     pastRow.appendChild(select);
     sourceBox.appendChild(pastRow);
+    sourceBox.appendChild(similarLine);
   };
 
   // ------------------------------------------------------------------
@@ -672,27 +989,28 @@ export function renderReportTab(host: HTMLElement): void {
 
   // Dev/test aid: fill every report field with a realistic sample (Change: demo)
   function fillSampleReport() {
-    const inAWeek = new Date(Date.now() + 7 * 86400000);
+    const tomorrow = new Date(Date.now() + 86400000);
     Object.assign(form, {
-      employeeName: form.employeeName || lsGet(LS_KEYS.employeeName!) || 'A. Engineer',
-      employeeId: form.employeeId || lsGet(LS_KEYS.employeeId!) || 'E-2048',
-      machineId: 'Dispenser A3',
-      affectedCount: '12 of 100 boards',
+      employeeName: 'A. Engineer (Lead QA)',
+      employeeId: 'E-2048 / T-1092',
+      machineId: 'Dispenser Head A3',
+      affectedCount: '14 of 100 units affected',
       d3Status: 'Completed',
-      d3Action: 'Stopped the line and purged the syringe until the flow was continuous.',
-      d3CompletedBy: 'A. Engineer',
+      d3Action: 'Purged syringe line, verified backpressure at 0.35 MPa, replaced disposable 27G dispense tip.',
+      d3CompletedBy: 'A. Engineer (Lead QA)',
       d3CompletedAt: nowLocalDatetime(),
       d4Status: 'Confirmed',
-      d4Method: 'Three test shots confirmed the air bubble was cleared.',
+      d4Method: 'Acoustic micro-void check confirmed trapped micro-air pocket near syringe piston interface.',
       d5Status: 'In Progress',
-      d5TargetDate: inAWeek.toISOString().slice(0, 10),
-      d5Responsible: 'B. Technician',
-      d6Action: 'Replaced the nozzle and recalibrated the dispense height.',
+      d5TargetDate: tomorrow.toISOString().slice(0, 10),
+      d5Responsible: 'B. Technician (Process Eng)',
+      d6Action: 'Installed inline bubble sensor and updated syringe priming sequence in recipe v4.2.',
       d6Status: 'Implemented',
       d6Verified: 'Yes',
-      d7Notes: 'Purged the syringe and replaced the nozzle; dispense volume is repeatable again.',
-      confirmedCause: form.confirmedCause || 'Air trapped in syringe / supply',
-      closedBy: form.closedBy || 'A. Engineer',
+      d7Notes: 'Standardize syringe thaw-and-degas timing; update daily pre-flight check sheet.',
+      confirmedCause: 'Air trapped in syringe / fluid supply',
+      closedBy: 'A. Engineer (Lead QA)',
+      closedDate: new Date().toISOString().slice(0, 10),
     });
     lsSet(LS_KEYS.employeeName!, form.employeeName);
     lsSet(LS_KEYS.employeeId!, form.employeeId);
