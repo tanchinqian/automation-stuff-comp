@@ -437,21 +437,29 @@ export function createInspectionPanel(opts: {
     let y1 = 0;
     let w = 0;
     let h = 0;
+    const scale = Number.isFinite(lastScale) && lastScale > 0 ? lastScale : 1;
     if (leg) {
       [x1, y1] = [leg.bbox[0], leg.bbox[1]];
       w = leg.bbox[2] - leg.bbox[0];
       h = leg.bbox[3] - leg.bbox[1];
     } else if (pad) {
-      x1 = pad.rect.x / lastScale;
-      y1 = pad.rect.y / lastScale;
-      w = pad.rect.w / lastScale;
-      h = pad.rect.h / lastScale;
+      x1 = pad.rect.x / scale;
+      y1 = pad.rect.y / scale;
+      w = pad.rect.w / scale;
+      h = pad.rect.h / scale;
     }
+    x1 = Number.isFinite(x1) ? x1 : 0;
+    y1 = Number.isFinite(y1) ? y1 : 0;
+    w = Number.isFinite(w) && w > 0 ? w : 1;
+    h = Number.isFinite(h) && h > 0 ? h : 1;
+
     const margin = 6;
-    const sx = Math.max(0, x1 - margin);
-    const sy = Math.max(0, y1 - margin);
-    const sw = Math.min(baseImage.naturalWidth - sx, w + margin * 2);
-    const sh = Math.min(baseImage.naturalHeight - sy, h + margin * 2);
+    const imgW = baseImage.naturalWidth || canvas.width || 1;
+    const imgH = baseImage.naturalHeight || canvas.height || 1;
+    const sx = Math.max(0, Math.min(imgW - 1, x1 - margin));
+    const sy = Math.max(0, Math.min(imgH - 1, y1 - margin));
+    const sw = Math.max(1, Math.min(imgW - sx, w + margin * 2));
+    const sh = Math.max(1, Math.min(imgH - sy, h + margin * 2));
     cropCtx.imageSmoothingEnabled = false;
     cropCtx.drawImage(baseImage, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
 

@@ -146,10 +146,12 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   };
 
   // ── Formatting & Drawing helpers ───────────────────────────────────────────
-  const formatDateTime = (dtStr?: string | number): string => {
-    if (!dtStr) return '19/09/2026, 1:26:00 pm';
+  const formatDateTime = (dtStr?: string | number, fallback = 'Pending'): string => {
+    if (!dtStr) return fallback;
     if (typeof dtStr === 'string') {
-      const garbled = dtStr.match(/^(\d{2}\/\d{2}\/\d{4})(\d{1,2}:\d{2}:\d{2})\s*,\s*(am|pm)$/i);
+      const trimmed = dtStr.trim();
+      if (!trimmed) return fallback;
+      const garbled = trimmed.match(/^(\d{2}\/\d{2}\/\d{4})(\d{1,2}:\d{2}:\d{2})\s*,\s*(am|pm)$/i);
       if (garbled) return `${garbled[1]}, ${garbled[2]} ${garbled[3]}`;
     }
     try {
@@ -171,8 +173,9 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
     }
   };
 
-  const formatDateOnly = (dtStr?: string | number): string => {
-    if (!dtStr) return '19/09/2026';
+  const formatDateOnly = (dtStr?: string | number, fallback = 'Pending'): string => {
+    if (!dtStr) return fallback;
+    if (typeof dtStr === 'string' && !dtStr.trim()) return fallback;
     try {
       const d = new Date(dtStr);
       if (isNaN(d.getTime())) return String(dtStr);
@@ -906,7 +909,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   const confirmedCauseVal = data.confirmedCause || 'Air trapped in syringe / supply';
   const finalStatusVal = isClosed ? 'Report Closed' : 'Open Awaiting Sign-off';
   const closedOnText = isClosed
-    ? formatDateOnly(data.closedDate)
+    ? (data.closedDate ? formatDateOnly(data.closedDate) : formatDateOnly(Date.now()))
     : 'Pending Review';
   const closedByText = (isClosed && data.closedBy) ? data.closedBy : (data.employeeName || 'A. Engineer');
 
@@ -937,7 +940,7 @@ export function buildReportPdf(data: ReportData, fonts: PdfFontData | null = nul
   doc.text(finalStatusVal, d8LabelX + finalStatusLabelW, y);
   y += 13;
 
-  // Row 3: CLOSED ON: 19/09/2026                 CLOSED BY: A. Engineer
+  // Row 3: CLOSED ON (Col 1) & CLOSED BY (Col 2)
   const d8ColW = CW / 2;
   const d8Col1X = ML + 6;
   const d8Col2X = ML + d8ColW + 6;
