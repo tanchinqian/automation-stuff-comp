@@ -13,6 +13,25 @@ PasteTrace is an offline-first, on-device AI troubleshooting console for fluid-d
 
 ---
 
+## Video Presentation: PasteTrace - The Defect Detective
+
+> **AI Horizon Solution Challenge 2026 Showcase**  
+> An end-to-end video walkthrough demonstrating automated solder paste inspection, real-time computer vision inference, explainable Bayesian root-cause diagnosis, and automated 8D reporting.
+
+[![PasteTrace System Walkthrough](docs/media/walkthrough_animated.webp)](docs/media/demo_walkthrough.mp4)
+
+*Click the live walkthrough above or [click here to open/download the full MP4 video](docs/media/demo_walkthrough.mp4).*
+
+### Walkthrough Chapters & Key Highlights
+
+| Timestamp | Chapter | Key Capabilities Demonstrated |
+| :---: | :--- | :--- |
+| `00:00 - 00:12` | **Stage 1 & 2 Vision Inspection (SPI)** | Automated pad and pin detection via YOLOv8n, micro-crop classification through MobileNetV2, pad reticle zoom, and overall board quality scoring (90/100). |
+| `00:12 - 00:20` | **Bayesian Root-Cause Diagnosis & Guided Actions** | Evidence-weighted probability ranking across failure modes (Air in syringe 91%, Material viscosity 72%), historical recurrence timeline, and guided verification checklist. |
+| `00:20 - 00:31` | **Closed-Loop Learning DB & 8D NCR Export** | Instant persistence of case evidence into the learning database to shift future Bayesian priors, followed by one-click generation of the audit-ready 8D Non-Conformance Report PDF. |
+
+---
+
 ## System Architecture
 
 The following diagram illustrates the complete end-to-end data flow from raw board image acquisition to Bayesian diagnosis and closed-loop learning:
