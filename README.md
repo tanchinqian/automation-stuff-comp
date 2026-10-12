@@ -13,6 +13,27 @@ PasteTrace is an offline-first, on-device AI troubleshooting console for fluid-d
 
 ---
 
+## Video Presentation: PasteTrace - The Defect Detective
+
+> **AI Horizon Solution Challenge 2026 Showcase**  
+> An end-to-end video walkthrough demonstrating automated solder paste inspection, real-time computer vision inference, explainable Bayesian root-cause diagnosis, and automated 8D reporting.
+
+<video src="Presentation%20-%20PasteTrace%20The%20Defect%20Detective%20(2).mp4" poster="docs/images/presentation_poster.png" controls="controls" width="100%"></video>
+
+*If the embedded video player does not display in your browser or Markdown viewer, [click here to play or download the presentation video directly](Presentation%20-%20PasteTrace%20The%20Defect%20Detective%20(2).mp4).*
+
+### Walkthrough Chapters & Key Highlights
+
+| Timestamp | Chapter | Key Capabilities Demonstrated |
+| :---: | :--- | :--- |
+| `00:00 - 00:20` | **Stage 1 & 2 Vision Inspection (SPI)** | Automated pad and pin detection via YOLOv8n, micro-crop classification through MobileNetV2, pad reticle zoom, and overall board quality scoring (90/100). |
+| `00:20 - 00:45` | **Bayesian Root-Cause Diagnosis** | Evidence-weighted probability ranking across failure modes (Air in syringe 91%, Material viscosity 72%), historical recurrence timeline, and transparent "Why?" breakdown. |
+| `00:45 - 01:10` | **Guided Troubleshooting & Verification** | Interactive step-by-step engineering checklist, isolation of root causes during physical checks, and confirmation of resolution at Step 2 (Material condition). |
+| `01:10 - 01:55` | **Closed-Loop Learning DB & 8D NCR Export** | Instant persistence of case evidence into the learning database to shift future Bayesian priors, followed by one-click generation of the audit-ready 8D Non-Conformance Report PDF. |
+| `01:55 - 02:21` | **Calibration Engine & Threshold Tuning** | Live interactive adjustment of quality score thresholds (Volume, Position, Shape/Fill, Defect Risk) tailored to specific dispensing machines and customer specs. |
+
+---
+
 ## System Architecture
 
 The following diagram illustrates the complete end-to-end data flow from raw board image acquisition to Bayesian diagnosis and closed-loop learning:
