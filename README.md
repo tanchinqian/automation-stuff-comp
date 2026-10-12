@@ -18,9 +18,9 @@ PasteTrace is an offline-first, on-device AI troubleshooting console for fluid-d
 > **AI Horizon Solution Challenge 2026 Showcase**  
 > An end-to-end video walkthrough demonstrating automated solder paste inspection, real-time computer vision inference, explainable Bayesian root-cause diagnosis, and automated 8D reporting.
 
-<video src="docs/media/demo_walkthrough.mp4" poster="docs/images/demo_poster.png" controls="controls" width="100%"></video>
+[![PasteTrace System Walkthrough](docs/media/walkthrough_animated.webp)](docs/media/demo_walkthrough.mp4)
 
-*Direct link: [▶️ Play / Download Walkthrough Video (`docs/media/demo_walkthrough.mp4`)](docs/media/demo_walkthrough.mp4)*
+*Click the live walkthrough above or [click here to open/download the full MP4 video](docs/media/demo_walkthrough.mp4).*
 
 ### Walkthrough Chapters & Key Highlights
 
